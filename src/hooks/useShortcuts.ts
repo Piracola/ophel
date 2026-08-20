@@ -470,8 +470,10 @@ export function useShortcuts({
     }
 
     try {
-      // 默认导出为 Markdown 文件
-      const success = await conversationManager.exportConversation(sessionId, "markdown")
+      // 默认按用户在设置中选择的默认导出格式导出文件
+      const liveSettings = useSettingsStore.getState().settings
+      const format = liveSettings.export?.defaultExportFormat || "markdown"
+      const success = await conversationManager.exportConversation(sessionId, format)
       if (!success) {
         showToast(t("exportFailed"))
       }

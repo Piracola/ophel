@@ -1,12 +1,14 @@
 /**
  * 会话导出工具
  *
- * 支持导出为 Markdown、JSON、TXT 格式
+ * 支持导出为 Markdown、JSON、TXT、HTML 格式
  * 包含强大的 HTML 转 Markdown 功能
  */
 
-import { t } from "~utils/i18n"
+import { renderKatexToMathML } from "~platform/katex"
+import { getCurrentLang, t } from "~utils/i18n"
 import { showToast } from "~utils/toast"
+import { createMarkdownIt } from "~utils/markdown"
 import { platform } from "~platform"
 
 // 使用 String.fromCodePoint 在运行时生成 emoji
@@ -49,7 +51,7 @@ export interface ExportMetadata {
   customModelName?: string
 }
 
-export type ExportFormat = "markdown" | "json" | "txt" | "clipboard"
+export type ExportFormat = "markdown" | "json" | "txt" | "html" | "clipboard"
 
 export interface ZipFileInput {
   path: string
@@ -665,6 +667,666 @@ export function formatToTXT(metadata: ExportMetadata, messages: ExportMessage[])
   return lines.join("\n")
 }
 
+// ==================== HTML 导出 ====================
+
+/**
+ * 导出的 HTML 是自包含的单文件文档：
+ * - 无外部依赖（字体、图标、CDN），file:// 直接打开即可阅读
+ * - 内置亮 / 暗 / 跟随系统三种主题，读者可自由切换
+ * - 代码块带复制按钮与语言标签，打印时强制浅色
+ */
+
+export const HTML_FILE_EXT = "html"
+
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+
+/**
+ * 将 LaTeX 渲染为 MathML（现代浏览器原生支持，无需内嵌字体）
+ * 渲染失败时回退为等宽文本显示 LaTeX 源码
+ */
+export const renderMathToMathML = (content: string, displayMode: boolean): string =>
+  renderKatexToMathML(content, { displayMode })
+
+const htmlExportMarkdownIt = createMarkdownIt(true, false, renderMathToMathML)
+
+const COPY_ICON_SVG =
+  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>'
+
+const THOUGHT_MARKDOWN_LINE =
+  /^\s*(?:\[(?:Thoughts?|思维链|思考过程)\]|\*{0,2}💭\s*思考过程\*{0,2})\s*$/i
+
+function getThoughtMarkerIndex(lines: string[]): number {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index].replace(/^>\s?/, "").trim()
+    if (!line) continue
+    return THOUGHT_MARKDOWN_LINE.test(line) ? index : -1
+  }
+
+  return -1
+}
+
+function mergeSegmentedThoughtBlocks(content: string): string {
+  const lines = content.replace(/\r\n?/g, "\n").split("\n")
+  const merged: string[] = []
+  let index = 0
+
+  while (index < lines.length) {
+    if (!lines[index].startsWith(">")) {
+      merged.push(lines[index])
+      index += 1
+      continue
+    }
+
+    const block: string[] = []
+    while (index < lines.length && lines[index].startsWith(">")) {
+      block.push(lines[index])
+      index += 1
+    }
+
+    const markerIndex = getThoughtMarkerIndex(block)
+    if (markerIndex !== 0) {
+      merged.push(...block)
+      continue
+    }
+
+    const normalizedBlock = [...block]
+    normalizedBlock[markerIndex] = "> [Thoughts]"
+    const thoughtGroup = [...normalizedBlock]
+
+    while (true) {
+      let nextIndex = index
+      while (nextIndex < lines.length && lines[nextIndex].trim() === "") nextIndex += 1
+      if (nextIndex >= lines.length || !lines[nextIndex].startsWith(">")) break
+
+      const nextBlock: string[] = []
+      let scanIndex = nextIndex
+      while (scanIndex < lines.length && lines[scanIndex].startsWith(">")) {
+        nextBlock.push(lines[scanIndex])
+        scanIndex += 1
+      }
+
+      const nextMarkerIndex = getThoughtMarkerIndex(nextBlock)
+      if (nextMarkerIndex < 0) break
+
+      thoughtGroup.push(">")
+      thoughtGroup.push(...nextBlock.slice(nextMarkerIndex + 1))
+      index = scanIndex
+    }
+
+    merged.push(...thoughtGroup)
+  }
+
+  return merged.join("\n")
+}
+
+/**
+ * 渲染单条导出的 Markdown 内容
+ * 复用面板同源的 markdown-it + highlight.js 管线，保证所见即所谈
+ */
+function renderExportMarkdown(content: string): string {
+  let html = htmlExportMarkdownIt.render(mergeSegmentedThoughtBlocks(content))
+
+  // 高亮变量占位符 {{varName}}
+  html = html.replace(/\{\{([^\s{}]+)\}\}/g, '<span class="gh-variable-highlight">{{$1}}</span>')
+
+  // 连续的思维链 blockquote 合并为一个折叠块，避免模型分段输出造成多个思维链卡片
+  const blockquotePattern = /<blockquote>[\s\S]*?<\/blockquote>/g
+  const thoughtMarkerPattern =
+    /<p>\s*(?:(?:<strong>\s*)?\[(?:Thoughts?|思维链|思考过程)\](?:\s*<\/strong>)?|(?:<strong>\s*)?💭\s*思考过程(?:\s*<\/strong>)?)\s*(?:<br\s*\/?>\s*)?/i
+  const isThoughtMarker = (block: string): boolean => thoughtMarkerPattern.test(block)
+  const renderThoughtGroup = (blocks: string[]): string => {
+    const thoughtBody = blocks
+      .map((block) =>
+        block
+          .replace(thoughtMarkerPattern, "<p>")
+          .replace(/^<blockquote>\s*<p>\s*<\/p>\s*/i, "<blockquote>"),
+      )
+      .join("\n")
+
+    return `<details class="gh-thought">
+  <summary class="gh-thought-summary"><span class="gh-thought-dot" aria-hidden="true"></span>${t("exportThoughtCollapsedLabel")}</summary>
+  <div class="gh-thought-body">${thoughtBody}</div>
+</details>`
+  }
+
+  let renderedThoughts = ""
+  let lastIndex = 0
+  let pendingThoughts: string[] = []
+  let match: RegExpExecArray | null
+
+  while ((match = blockquotePattern.exec(html)) !== null) {
+    const before = html.slice(lastIndex, match.index)
+    const block = match[0]
+    const isAdjacentThought = pendingThoughts.length > 0 && /^\s*$/.test(before)
+
+    if (isThoughtMarker(block) || isAdjacentThought) {
+      if (pendingThoughts.length === 0) renderedThoughts += before
+      pendingThoughts.push(block)
+    } else {
+      if (pendingThoughts.length > 0) {
+        renderedThoughts += renderThoughtGroup(pendingThoughts)
+        pendingThoughts = []
+      }
+      renderedThoughts += before + block
+    }
+
+    lastIndex = match.index + block.length
+  }
+
+  if (pendingThoughts.length > 0) {
+    renderedThoughts += renderThoughtGroup(pendingThoughts)
+  }
+  renderedThoughts += html.slice(lastIndex)
+  html = renderedThoughts
+
+  // 带语言标注的代码块：标签栏（语言标签 + 复制按钮）
+  html = html.replace(
+    /<pre><code class="language-([A-Za-z0-9_#+-]+)"/g,
+    (_match, lang: string) =>
+      `<div class="gh-code-wrapper"><div class="gh-code-header"><span class="gh-code-lang">${escapeHtml(lang)}</span><button class="gh-code-copy-btn" data-copy-code="true" type="button" aria-label="${t("copy")}" title="${t("copy")}">${COPY_ICON_SVG}</button></div><pre><code class="language-${escapeHtml(lang)}"`,
+  )
+
+  // 无语言标注的代码块：仅复制按钮
+  html = html.replace(
+    /<pre><code(?![^>]*class=)/g,
+    `<div class="gh-code-wrapper"><div class="gh-code-header"><span class="gh-code-lang"></span><button class="gh-code-copy-btn" data-copy-code="true" type="button" aria-label="${t("copy")}" title="${t("copy")}">${COPY_ICON_SVG}</button></div><pre><code`,
+  )
+
+  html = html.replace(/<\/pre>/g, "</pre></div>")
+
+  return html
+}
+
+const HTML_THEME_LABELS = JSON.stringify({
+  auto: t("themeAuto"),
+  light: t("themeLight"),
+  dark: t("themeDark"),
+})
+
+const EXPORT_HTML_CSS = `
+:root {
+  --gh-bg: #f5f4f2;
+  --gh-surface: #ffffff;
+  --gh-border: #e9e6e1;
+  --gh-border-strong: #d9d5cd;
+  --gh-text: #1d1b18;
+  --gh-text-secondary: #6d675f;
+  --gh-text-tertiary: #a39d93;
+  --gh-primary: #3b63f3;
+  --gh-primary-soft: #eef1fe;
+  --gh-primary-soft-border: #dfe5fb;
+  --gh-hover: #f3f2ef;
+  --gh-shadow: 0 1px 2px rgba(29, 27, 24, 0.05), 0 16px 40px rgba(29, 27, 24, 0.08);
+  --gh-code-bg: #161616;
+  --gh-code-text: #e8e6e2;
+  --gh-code-border: #262625;
+  --gh-code-header-bg: #1c1c1c;
+  --gh-code-btn-text: #97938c;
+  --gh-code-btn-hover: #2a2927;
+  --gh-code-btn-border: #33322f;
+  --gh-radius: 14px;
+  --gh-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --gh-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+html[data-theme="dark"] {
+  --gh-bg: #0e0e0d;
+  --gh-surface: #171716;
+  --gh-border: #282725;
+  --gh-border-strong: #383633;
+  --gh-text: #eae8e4;
+  --gh-text-secondary: #a8a49c;
+  --gh-text-tertiary: #76716a;
+  --gh-primary: #8ba3ff;
+  --gh-primary-soft: rgba(139, 163, 255, 0.14);
+  --gh-primary-soft-border: rgba(139, 163, 255, 0.24);
+  --gh-hover: #21201e;
+  --gh-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--gh-bg);
+  color: var(--gh-text);
+  font-family: var(--gh-font);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+  /* 纸面卡片：整篇导出内容落在居中的白卡上 */
+.gh-shell {
+  max-width: 760px;
+  margin: 24px auto;
+  padding: 28px 52px 40px;
+
+  background: var(--gh-surface);
+  border: 1px solid var(--gh-border);
+  border-radius: 16px;
+  box-shadow: var(--gh-shadow);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* 顶部工具栏：主题切换 */
+.gh-doc-header { position: relative; padding-right: 48px; }
+.gh-toolbar { position: absolute; top: -2px; right: 0; display: flex; }
+.gh-tool-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0;
+  border: 1px solid var(--gh-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--gh-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.gh-tool-btn:hover { background: var(--gh-hover); color: var(--gh-text); border-color: var(--gh-border-strong); }
+.gh-tool-btn:active { transform: scale(0.95); }
+.gh-tool-btn:focus-visible { outline: 2px solid var(--gh-primary); outline-offset: 2px; }
+.gh-tool-btn svg { display: none; }
+.gh-tool-btn[data-theme-mode="auto"] .gh-icon-auto,
+.gh-tool-btn[data-theme-mode="light"] .gh-icon-sun,
+.gh-tool-btn[data-theme-mode="dark"] .gh-icon-moon { display: block; }
+
+/* 文档头部 */
+.gh-kicker {
+  margin: 0 0 8px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--gh-primary);
+}
+.gh-doc-header h1 {
+  margin: 0 0 12px;
+  font-size: 2rem; font-weight: 700; line-height: 1.25;
+  letter-spacing: -0.02em;
+  word-break: break-word;
+}
+.gh-doc-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  color: var(--gh-text-secondary);
+  font-size: 0.8125rem;
+}
+.gh-meta-dot { color: var(--gh-text-tertiary); }
+
+.gh-conversation { margin-top: 28px; }
+
+.gh-message { margin: 0 0 20px; padding: 18px 20px; border-radius: var(--gh-radius); }
+.gh-message[data-role="user"] {
+  background: var(--gh-primary-soft);
+  border: 1px solid var(--gh-primary-soft-border);
+}
+.gh-msg-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.gh-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--gh-hover);
+  color: var(--gh-primary);
+  flex-shrink: 0;
+}
+.gh-avatar svg { display: block; }
+.gh-message[data-role="user"] .gh-avatar {
+  background: var(--gh-primary);
+  color: #ffffff;
+}
+.gh-msg-name { font-size: 0.8125rem; font-weight: 600; color: var(--gh-text-secondary); }
+.gh-message[data-role="user"] .gh-msg-name { color: var(--gh-text); }
+
+/* Markdown 渲染 */
+.gh-markdown-preview { line-height: 1.7; font-size: 0.9375rem; }
+.gh-markdown-preview > :first-child { margin-top: 0; }
+.gh-markdown-preview > :last-child { margin-bottom: 0; }
+.gh-markdown-preview p { margin: 12px 0; }
+.gh-markdown-preview h1, .gh-markdown-preview h2, .gh-markdown-preview h3, .gh-markdown-preview h4 {
+  margin: 22px 0 10px; font-weight: 650; line-height: 1.4; letter-spacing: -0.01em;
+}
+.gh-markdown-preview h1 { font-size: 1.4em; }
+.gh-markdown-preview h2 { font-size: 1.25em; padding-bottom: 6px; border-bottom: 1px solid var(--gh-border); }
+.gh-markdown-preview h3 { font-size: 1.1em; }
+.gh-markdown-preview h4 { font-size: 1em; }
+.gh-markdown-preview h5, .gh-markdown-preview h6 { font-size: 0.92em; color: var(--gh-text-secondary); }
+.gh-markdown-preview ul, .gh-markdown-preview ol { margin: 12px 0; padding-left: 26px; }
+.gh-markdown-preview li { margin: 6px 0; }
+.gh-markdown-preview li::marker { color: var(--gh-text-tertiary); }
+.gh-markdown-preview a {
+  color: var(--gh-primary);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--gh-primary) 30%, transparent);
+}
+.gh-markdown-preview a:hover { border-bottom-color: var(--gh-primary); }
+.gh-markdown-preview :not(pre) > code:not(.hljs) {
+  background: var(--gh-hover);
+  padding: 2px 6px; border-radius: 5px;
+  font-family: var(--gh-mono); font-size: 0.875em; color: var(--gh-text);
+}
+.gh-markdown-preview blockquote {
+  margin: 14px 0; padding: 2px 0 2px 16px;
+  border-left: 3px solid var(--gh-border-strong);
+  color: var(--gh-text-secondary);
+}
+.gh-markdown-preview hr { margin: 24px 0; border: 0; border-top: 1px solid var(--gh-border); }
+.gh-markdown-preview img { max-width: 100%; height: auto; border-radius: 10px; }
+.gh-markdown-preview mark { padding: 1px 4px; border-radius: 3px; background: rgba(255, 213, 0, 0.35); color: inherit; }
+.gh-markdown-preview .task-list-item { list-style: none; margin-left: -22px; }
+.gh-markdown-preview .task-list-item input[type="checkbox"] { margin-right: 8px; }
+.gh-markdown-preview table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 14px 0; font-size: 0.92em; }
+.gh-markdown-preview th, .gh-markdown-preview td { padding: 8px 12px; border: 1px solid var(--gh-border); text-align: left; }
+.gh-markdown-preview th { background: var(--gh-hover); font-weight: 600; }
+.gh-variable-highlight { padding: 2px 6px; border-radius: 4px; background: rgba(59, 99, 243, 0.14); color: var(--gh-primary); font-family: var(--gh-mono); font-size: 0.9em; font-weight: 500; }
+
+/* 思维链折叠（[Thought] blockquote 包装为 details） */
+.gh-thought {
+  margin: 16px 0;
+  border: 1px solid var(--gh-border);
+  border-radius: 10px;
+  background: var(--gh-surface);
+  overflow: hidden;
+}
+.gh-thought-summary {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  font-size: 0.8125rem; font-weight: 600;
+  color: var(--gh-text-secondary);
+  cursor: pointer; user-select: none;
+  list-style: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.gh-thought-summary::-webkit-details-marker { display: none; }
+.gh-thought-summary:hover { background: var(--gh-hover); color: var(--gh-text); }
+.gh-thought-summary:focus-visible { outline: 2px solid var(--gh-primary); outline-offset: -2px; border-radius: 10px; }
+.gh-thought-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--gh-primary); flex-shrink: 0;
+}
+.gh-thought[open] .gh-thought-summary { border-bottom: 1px solid var(--gh-border); }
+.gh-thought-body { padding: 4px 0; }
+.gh-thought-body blockquote {
+  margin: 0; padding: 10px 14px;
+  border-left: 0;
+  color: var(--gh-text-secondary); font-size: 0.9em;
+}
+
+/* 提示容器 */
+.gh-container { margin: 14px 0; padding: 12px 16px; border-radius: 10px; border-left: 4px solid; }
+.gh-container-info { border-color: var(--gh-primary); background: var(--gh-primary-soft); }
+.gh-container-warning { border-color: #f0a45c; background: rgba(240, 164, 92, 0.12); }
+.gh-container-danger { border-color: #f0625d; background: rgba(240, 98, 93, 0.12); }
+
+/* 代码块：标签栏 + 深色代码区（两主题下保持一致） */
+.gh-code-wrapper {
+  margin: 16px 0;
+  border: 1px solid var(--gh-code-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--gh-code-bg);
+}
+.gh-code-header {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 36px; padding: 0 6px 0 14px;
+  background: var(--gh-code-header-bg);
+  border-bottom: 1px solid var(--gh-code-border);
+}
+.gh-code-lang {
+  font-family: var(--gh-mono); font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase;
+  color: var(--gh-code-btn-text);
+  user-select: none;
+}
+.gh-code-copy-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; border-radius: 6px;
+  border: 1px solid transparent; background: transparent;
+  color: var(--gh-code-btn-text);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.gh-code-copy-btn:hover { background: var(--gh-code-btn-hover); color: var(--gh-code-text); border-color: var(--gh-code-btn-border); }
+.gh-code-copy-btn:active { transform: scale(0.92); }
+.gh-code-copy-btn:focus-visible { outline: 2px solid var(--gh-primary); outline-offset: 1px; }
+.gh-code-copy-btn svg { display: block; }
+.gh-code-copy-btn[data-copied] { color: #3fb950; }
+.gh-code-copy-btn[data-copied] svg { display: none; }
+.gh-code-copy-btn[data-copied]::after { content: "✓"; font-size: 12px; line-height: 1; }
+.gh-code-wrapper pre { margin: 0; }
+.gh-code-wrapper pre code {
+  display: block; padding: 14px 16px; overflow-x: auto;
+  font-family: var(--gh-mono); font-size: 13px; line-height: 1.6;
+  color: var(--gh-code-text); background: var(--gh-code-bg);
+  white-space: pre; tab-size: 4;
+}
+
+/* highlight.js GitHub Dark 配色（代码区固定深色底） */
+.hljs { display: block; }
+.hljs-comment, .hljs-quote { color: #8b949e; font-style: italic; }
+.hljs-keyword, .hljs-selector-tag { color: #ff7b72; }
+.hljs-string, .hljs-doctag { color: #a5d6ff; }
+.hljs-number, .hljs-literal { color: #79c0ff; }
+.hljs-title, .hljs-section, .hljs-selector-id { color: #d2a8ff; font-weight: bold; }
+.hljs-function > .hljs-title { color: #d2a8ff; }
+.hljs-type, .hljs-class .hljs-title { color: #7ee787; }
+.hljs-attribute { color: #79c0ff; }
+.hljs-variable, .hljs-template-variable { color: #ffa657; }
+.hljs-built_in, .hljs-params { color: #ffa657; }
+.hljs-meta, .hljs-symbol, .hljs-bullet { color: #e3b341; }
+.hljs-addition { color: #aff5b4; background: rgba(46, 160, 67, 0.15); }
+.hljs-deletion { color: #ffdcd7; background: rgba(248, 81, 73, 0.15); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: bold; }
+
+/* 数学公式（MathML 由浏览器原生排版） */
+.math-block { display: block; margin: 14px 0; overflow-x: auto; }
+.math-inline { white-space: nowrap; }
+math { font-family: "Cambria Math", "STIX Two Math", "Latin Modern Math", "Times New Roman", serif; }
+
+/* 导出页脚 */
+.gh-doc-footer {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 48px; padding-top: 24px;
+  border-top: 1px solid var(--gh-border);
+  color: var(--gh-text-tertiary);
+  font-size: 0.75rem;
+}
+.gh-footer-dot { opacity: 0.6; }
+
+/* 响应式 */
+@media (max-width: 640px) {
+  .gh-shell { margin: 0; padding: 32px 20px 36px; border-radius: 0; border-left: 0; border-right: 0; box-shadow: none; }
+  .gh-doc-header h1 { font-size: 1.5rem; }
+  .gh-message { padding: 14px; }
+}
+
+/* 打印：强制浅色、隐藏交互控件 */
+@media print {
+  :root, html[data-theme="dark"] {
+    --gh-bg: #ffffff;
+    --gh-surface: #ffffff;
+    --gh-border: #e5e7eb;
+    --gh-border-strong: #d1d5db;
+    --gh-text: #111827;
+    --gh-text-secondary: #4b5563;
+    --gh-text-tertiary: #9ca3af;
+    --gh-primary: #2563eb;
+    --gh-primary-soft: #f0f4ff;
+    --gh-primary-soft-border: #dbe3ff;
+    --gh-code-bg: #f8f9fa;
+    --gh-code-text: #1f2937;
+    --gh-code-border: #e5e7eb;
+    --gh-code-header-bg: #f0f1f3;
+    --gh-code-btn-text: #6b7280;
+    --gh-code-btn-hover: #e5e7eb;
+  }
+  body { font-size: 12pt; }
+  .gh-shell { margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; }
+  .gh-toolbar, .gh-code-header { display: none !important; }
+  .gh-message { break-inside: avoid; }
+  .gh-message[data-role="user"] { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .gh-code-wrapper pre code { white-space: pre-wrap; word-break: break-word; }
+  .gh-avatar { border: 1px solid var(--gh-border); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+`
+
+const EXPORT_HTML_JS = `
+(function () {
+  "use strict";
+  var KEY = "gh-export-theme";
+  var LABELS = ${HTML_THEME_LABELS};
+
+  function resolve(mode) {
+    if (mode === "light" || mode === "dark") return mode;
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) return "dark";
+    return "light";
+  }
+  function normalizeMode(mode) {
+    return mode === "light" || mode === "dark" || mode === "auto" ? mode : "auto";
+  }
+  function apply(mode, persist, themeBtn) {
+    mode = normalizeMode(mode);
+    document.documentElement.setAttribute("data-theme", resolve(mode));
+    if (themeBtn) {
+      themeBtn.setAttribute("data-theme-mode", mode);
+      themeBtn.setAttribute("aria-label", LABELS[mode] || LABELS.auto);
+      themeBtn.setAttribute("title", LABELS[mode] || LABELS.auto);
+    }
+    if (persist) {
+      try { localStorage.setItem(KEY, mode); } catch (err) { /* 存储不可用时保持当前页面状态 */ }
+    }
+  }
+  function cycle(themeBtn) {
+    var current = themeBtn.getAttribute("data-theme-mode") || "auto";
+    var next = current === "light" ? "dark" : current === "dark" ? "auto" : "light";
+    apply(next, true, themeBtn);
+  }
+  function init() {
+    var themeBtn = document.getElementById("gh-theme-btn");
+    var saved = null;
+    try { saved = localStorage.getItem(KEY); } catch (err) { /* 存储不可用时使用自动主题 */ }
+    apply(normalizeMode(saved || "auto"), false, themeBtn);
+    if (themeBtn) themeBtn.addEventListener("click", function () { cycle(themeBtn); });
+
+    if (window.matchMedia) {
+      var media = window.matchMedia("(prefers-color-scheme: dark)");
+      var onChange = function () {
+        if ((themeBtn && themeBtn.getAttribute("data-theme-mode")) === "auto") apply("auto", false, themeBtn);
+      };
+      if (media.addEventListener) media.addEventListener("change", onChange);
+      else if (media.addListener) media.addListener(onChange);
+    }
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    var btn = target && target.closest ? target.closest("[data-copy-code]") : null;
+    if (!btn) return;
+    var wrapper = btn.closest(".gh-code-wrapper");
+    if (!wrapper) return;
+    var pre = wrapper.querySelector("pre");
+    if (!pre) return;
+    var text = pre.innerText || pre.textContent || "";
+    function done() {
+      btn.setAttribute("data-copied", "true");
+      setTimeout(function () { btn.removeAttribute("data-copied"); }, 1200);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done)["catch"](function () {});
+    } else {
+      var textarea = document.createElement("textarea");
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      try { document.execCommand("copy"); done(); } catch (err) { /* 复制失败时不伪造成功状态 */ }
+      document.body.removeChild(textarea);
+    }
+  });
+})();
+`
+
+const SUN_ICON_SVG =
+  '<svg class="gh-icon-sun" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4l1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4m11.4-11.4l1.4-1.4"></path></svg>'
+const MOON_ICON_SVG =
+  '<svg class="gh-icon-moon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>'
+const SYSTEM_ICON_SVG =
+  '<svg class="gh-icon-auto" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"></rect><path d="M8 21h8m-4-4v4"></path></svg>'
+
+const USER_ICON_SVG =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>'
+const ASSISTANT_ICON_SVG =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.8 5.8 1.9-5.8 1.9L12 18.4l-1.9-5.8L4.3 10.7l5.8-1.9z"></path><path d="M19 3v3"></path><path d="M20.5 4.5h-3"></path></svg>'
+
+function formatMessageHtml(msg: ExportMessage, metadata: ExportMetadata): string {
+  const isUser = msg.role === "user"
+  const isAssistant = msg.role === "assistant"
+  const label = isUser
+    ? metadata.customUserName || t("exportUserLabel")
+    : isAssistant
+      ? metadata.customModelName || metadata.source
+      : msg.role
+  const icon = isUser ? USER_ICON_SVG : ASSISTANT_ICON_SVG
+
+  return `<article class="gh-message" data-role="${escapeHtml(msg.role)}">
+  <div class="gh-msg-head">
+    <span class="gh-avatar" aria-hidden="true">${icon}</span>
+    <span class="gh-msg-name">${escapeHtml(label)}</span>
+  </div>
+  <div class="gh-markdown-preview">${renderExportMarkdown(msg.content)}</div>
+</article>`
+}
+
+/**
+ * 格式化为自包含的单文件 HTML
+ */
+export function formatToHTML(metadata: ExportMetadata, messages: ExportMessage[]): string {
+  const lang = getCurrentLang() || "en"
+  const title = escapeHtml(metadata.title)
+  const time = escapeHtml(metadata.exportTime)
+  const source = escapeHtml(metadata.source)
+  const messagesHtml = messages.map((msg) => formatMessageHtml(msg, metadata)).join("\n")
+
+  return `<!DOCTYPE html>
+<html lang="${lang}" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title}</title>
+<style>${EXPORT_HTML_CSS}</style>
+<script>${EXPORT_HTML_JS}</script>
+</head>
+<body>
+<main class="gh-shell">
+  <header class="gh-doc-header">
+    <div class="gh-toolbar">
+      <button id="gh-theme-btn" class="gh-tool-btn" type="button" aria-label="${t("themeAuto")}" title="${t("themeAuto")}" data-theme-mode="auto">${SUN_ICON_SVG}${MOON_ICON_SVG}${SYSTEM_ICON_SVG}</button>
+    </div>
+    <p class="gh-kicker">Ophel Atlas</p>
+    <h1>${title}</h1>
+    <div class="gh-doc-meta">
+      <span>${time}</span>
+      <span class="gh-meta-dot" aria-hidden="true">·</span>
+      <span>${source}</span>
+    </div>
+  </header>
+  <section class="gh-conversation">
+${messagesHtml}
+  </section>
+  <footer class="gh-doc-footer">
+    <span>Ophel Atlas</span>
+    <span class="gh-footer-dot" aria-hidden="true">·</span>
+    <span>${time}</span>
+  </footer>
+</main>
+</body>
+</html>`
+}
 // ==================== 文件操作 ====================
 
 const textEncoder = new TextEncoder()

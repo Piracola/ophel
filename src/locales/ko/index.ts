@@ -1166,6 +1166,7 @@ export const ko = {
   exportMetaSource: "소스",
   exportNotSupported: "이 사이트에서는 내보내기를 지원하지 않습니다",
   exportToTXT: "TXT",
+  exportToHTML: "HTML",
   exportMetaUrl: "링크",
   exportUntitled: "제목 없음",
   exportToClipboard: "Markdown 복사",
@@ -1637,9 +1638,15 @@ export const ko = {
   exportFilenameTimestamp: "내보내기 파일명에 타임스탬프 추가",
   exportFilenameTimestampDesc: "내보낸 파일명 끝에 타임스탬프를 추가합니다",
   exportIncludeThoughtsLabel: "내보내기에 사고 과정 포함",
-  exportIncludeThoughtsDesc: "내보낼 때 사고 과정을 포함하고 자동으로 펼칩니다(인용 블록으로 구분)",
+  exportThoughtCollapsedLabel: "사고 과정",
+  exportIncludeThoughtsDesc:
+    "내보낼 때 사고 과정을 포함합니다. 기본적으로 접혀 있으며 클릭하여 펼칠 수 있습니다",
   exportAttachmentsLabel: "첨부 파일",
   exportPackagingLabel: "Markdown 내보내기 방식",
+  exportDefaultFormatLabel: "기본 내보내기 형식",
+  exportDefaultFormatDesc:
+    "단축키와 빠른 내보내기에 사용할 기본 형식을 설정합니다 (Markdown / JSON / TXT / HTML)",
+
   exportPackagingDesc:
     "ZIP에는 Markdown 파일과 다운로드 가능한 첨부 파일이 포함되며, 첨부 파일은 assets에 저장되고 상대 경로로 참조됩니다",
   exportPackagingMarkdown: "Markdown",

@@ -50,6 +50,13 @@ export const getKatexStylesText = (): string => {
   }
 }
 
+const wrapKatexResult = (latex: string, rendered: string, displayMode: boolean): string => {
+  const className = displayMode ? "math-block gh-rendered-math" : "math-inline gh-rendered-math"
+  const tagName = displayMode ? "div" : "span"
+
+  return `<${tagName} class="${className}" data-math="${escapeHtml(latex)}">${rendered}</${tagName}>`
+}
+
 export const renderKatexToString = (
   content: string,
   { displayMode }: KatexRenderOptions,
@@ -59,9 +66,7 @@ export const renderKatexToString = (
 
   if (!katex) {
     const fallback = displayMode ? `$$\n${latex}\n$$` : `$${latex}$`
-    const tagName = displayMode ? "div" : "span"
-    const className = displayMode ? "math-block gh-rendered-math" : "math-inline gh-rendered-math"
-    return `<${tagName} class="${className}" data-math="${escapeHtml(latex)}"><code>${escapeHtml(fallback)}</code></${tagName}>`
+    return wrapKatexResult(latex, `<code>${escapeHtml(fallback)}</code>`, displayMode)
   }
 
   try {
@@ -72,15 +77,37 @@ export const renderKatexToString = (
       strict: "ignore",
       trust: false,
     })
-    const tagName = displayMode ? "div" : "span"
-    const className = displayMode ? "math-block gh-rendered-math" : "math-inline gh-rendered-math"
-
-    return `<${tagName} class="${className}" data-math="${escapeHtml(latex)}">${rendered}</${tagName}>`
+    return wrapKatexResult(latex, rendered, displayMode)
   } catch {
     const fallback = displayMode ? `$$\n${latex}\n$$` : `$${latex}$`
-    const tagName = displayMode ? "div" : "span"
-    const className = displayMode ? "math-block gh-rendered-math" : "math-inline gh-rendered-math"
+    return wrapKatexResult(latex, `<code>${escapeHtml(fallback)}</code>`, displayMode)
+  }
+}
 
-    return `<${tagName} class="${className}" data-math="${escapeHtml(latex)}"><code>${escapeHtml(fallback)}</code></${tagName}>`
+/**
+ * 渲染为纯 MathML（无字体依赖，适合自包含的导出文档）
+ */
+export const renderKatexToMathML = (
+  content: string,
+  { displayMode }: KatexRenderOptions,
+): string => {
+  const latex = content.replace(/\r\n?/g, "\n").trim()
+  const katex = getGlobalKatex()
+
+  if (!katex) {
+    return wrapKatexResult(latex, `<math><mtext>${escapeHtml(latex)}</mtext></math>`, displayMode)
+  }
+
+  try {
+    const rendered = katex.renderToString(latex, {
+      displayMode,
+      output: "mathml",
+      throwOnError: false,
+      strict: "ignore",
+      trust: false,
+    })
+    return wrapKatexResult(latex, rendered, displayMode)
+  } catch {
+    return wrapKatexResult(latex, `<math><mtext>${escapeHtml(latex)}</mtext></math>`, displayMode)
   }
 }

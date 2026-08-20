@@ -913,10 +913,15 @@ export const it = {
   exportFilenameTimestamp: "Aggiungi timestamp al nome file",
   exportFilenameTimestampDesc: "Aggiungi un timestamp alla fine del nome del file esportato",
   exportIncludeThoughtsLabel: "Includi pensieri nell'esportazione",
+  exportThoughtCollapsedLabel: "Processo di pensiero",
   exportIncludeThoughtsDesc:
-    "Includi ed espandi automaticamente i pensieri durante l'esportazione (resi come blocchi di citazione)",
+    'Include i pensieri durante l\'esportazione; sono compressi sotto un interruttore "Processo di pensiero" che i lettori possono espandere',
   exportAttachmentsLabel: "Allegati",
   exportPackagingLabel: "Metodo di esportazione Markdown",
+  exportDefaultFormatLabel: "Formato di esportazione predefinito",
+  exportDefaultFormatDesc:
+    "Imposta il formato predefinito usato dalla scorciatoia da tastiera e dall'esportazione rapida (Markdown / JSON / TXT / HTML)",
+
   exportPackagingDesc:
     "ZIP include il file Markdown e gli allegati scaricabili, salvando gli allegati in assets e referenziandoli con percorsi relativi.",
   exportPackagingMarkdown: "Markdown",
@@ -1276,6 +1281,7 @@ export const it = {
   exportMetaSource: "Fonte",
   exportNotSupported: "Esportazione non supportata su questo sito",
   exportToTXT: "TXT",
+  exportToHTML: "HTML",
   exportMetaUrl: "URL",
   exportUntitled: "Senza titolo",
   exportToClipboard: "Copia Markdown",

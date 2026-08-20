@@ -8,7 +8,6 @@ import React from "react"
 
 import {
   CleanupIcon,
-  CopyIcon,
   ExportIcon,
   FolderMoveIcon,
   ModelLockIcon,
@@ -46,7 +45,6 @@ export interface ToolsMenuItem {
 export const TOOLS_MENU_IDS = {
   EXPORT: "export",
   SEGMENTED_EXPORT: "segmentedExport",
-  COPY_MARKDOWN: "copyMarkdown",
   MOVE: "move",
   SET_TAG: "setTag",
   SCROLL_LOCK: "scrollLock",
@@ -75,13 +73,6 @@ export const TOOLS_MENU_ITEMS: ToolsMenuItem[] = [
     labelKey: "segmentedExportMenuItem",
     defaultLabel: "Export segments",
     IconComponent: SegmentedExportIcon,
-    defaultVisible: true,
-  },
-  {
-    id: TOOLS_MENU_IDS.COPY_MARKDOWN,
-    labelKey: "exportToClipboard",
-    defaultLabel: "Copy Markdown",
-    IconComponent: CopyIcon,
     defaultVisible: true,
   },
   {

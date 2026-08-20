@@ -1016,9 +1016,13 @@ export const zhCN = {
   exportFilenameTimestamp: "导出文件名包含时间戳",
   exportFilenameTimestampDesc: "在导出文件名末尾添加时间戳",
   exportIncludeThoughtsLabel: "导出包含思维链",
-  exportIncludeThoughtsDesc: "导出时包含并自动展开思维链内容（使用引用块区分）",
+  exportThoughtCollapsedLabel: "思考过程",
+  exportIncludeThoughtsDesc: "导出时包含思维链内容，默认折叠为「思考过程」，读者可点击展开",
   exportAttachmentsLabel: "附件",
   exportPackagingLabel: "Markdown 导出方式",
+  exportDefaultFormatLabel: "默认导出格式",
+  exportDefaultFormatDesc: "设置快捷键与一键导出使用的默认格式（Markdown / JSON / TXT / HTML）",
+
   exportPackagingDesc:
     "ZIP 会包含 Markdown 文件和可下载附件，" + "附件放入 assets 并用相对路径引用",
   exportPackagingMarkdown: "Markdown",
@@ -1165,6 +1169,7 @@ export const zhCN = {
   exportMetaSource: "来源",
   exportNotSupported: "当前站点不支持导出",
   exportToTXT: "TXT",
+  exportToHTML: "HTML",
   exportMetaUrl: "链接",
   exportUntitled: "未命名",
   exportToClipboard: "复制 Markdown",

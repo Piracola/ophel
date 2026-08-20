@@ -28,9 +28,11 @@ import {
   type ExportMetadata,
   type ExportMessage,
   type ZipFileInput,
+  formatToHTML,
   formatToJSON,
   formatToMarkdown,
   formatToTXT,
+  HTML_FILE_EXT,
   htmlToMarkdown,
 } from "~utils/exporter"
 import { getAllLocalizedTexts, t } from "~utils/i18n"
@@ -1858,6 +1860,10 @@ export class ConversationManager {
           content = formatToJSON(metadata, messages)
           filename = `${filenamePrefix}${safeTitle}${timestampSuffix}.json`
           mimeType = "application/json;charset=utf-8"
+        } else if (format === "html") {
+          content = formatToHTML(metadata, messages)
+          filename = `${filenamePrefix}${safeTitle}${timestampSuffix}.${HTML_FILE_EXT}`
+          mimeType = "text/html;charset=utf-8"
         } else {
           content = formatToTXT(metadata, messages)
           filename = `${filenamePrefix}${safeTitle}${timestampSuffix}.txt`

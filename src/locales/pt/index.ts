@@ -1176,6 +1176,7 @@ export const pt = {
   exportMetaSource: "Origem",
   exportNotSupported: "Não suportado aqui",
   exportToTXT: "TXT",
+  exportToHTML: "HTML",
   exportMetaUrl: "Link",
   exportUntitled: "Sem Título",
   exportToClipboard: "Copiar Markdown",
@@ -1775,10 +1776,15 @@ Dê o código e depois um resumo de melhorias.`,
   exportFilenameTimestampDesc:
     "Adiciona um carimbo de data e hora ao final do nome do arquivo exportado",
   exportIncludeThoughtsLabel: "Incluir raciocínio na exportação",
+  exportThoughtCollapsedLabel: "Processo de pensamento",
   exportIncludeThoughtsDesc:
-    "Incluir e expandir automaticamente o raciocínio ao exportar (em blocos de citação)",
+    'Incluir pensamentos ao exportar; eles são recolhidos sob um alternador "Processo de pensamento" que os leitores podem expandir',
   exportAttachmentsLabel: "Anexos",
   exportPackagingLabel: "Método de exportação Markdown",
+  exportDefaultFormatLabel: "Formato de exportação padrão",
+  exportDefaultFormatDesc:
+    "Define o formato padrão usado pelo atalho de teclado e pela exportação rápida (Markdown / JSON / TXT / HTML)",
+
   exportPackagingDesc:
     "O ZIP inclui o arquivo Markdown e anexos baixáveis, salva os anexos em assets e os referencia com caminhos relativos.",
   exportPackagingMarkdown: "Markdown",

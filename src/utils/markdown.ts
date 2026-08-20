@@ -143,7 +143,14 @@ const githubReferenceRule: MarkdownItInlineRule = (state, silent) => {
   return true
 }
 
-const createMarkdownIt = (enableMath = false, linkGithubReferences = false): MarkdownIt => {
+export type MarkdownMathRenderer = (content: string, displayMode: boolean) => string
+
+export const createMarkdownIt = (
+  enableMath = false,
+  linkGithubReferences = false,
+  mathRenderer: MarkdownMathRenderer = (content, displayMode) =>
+    renderKatexToString(content, { displayMode }),
+): MarkdownIt => {
   const instance = new MarkdownIt({
     html: false, // 禁用 HTML 标签（安全）
     breaks: true, // 换行转 <br>
@@ -195,7 +202,7 @@ const createMarkdownIt = (enableMath = false, linkGithubReferences = false): Mar
     instance.use(tex, {
       delimiters: "all",
       allowInlineWithSpace: false,
-      render: (content, displayMode) => renderKatexToString(content, { displayMode }),
+      render: (content, displayMode) => mathRenderer(content, displayMode),
     })
   }
 

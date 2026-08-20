@@ -53,7 +53,10 @@ export interface ExportSettings {
   exportFilenameTimestamp?: boolean // 导出文件名包含时间戳
   includeThoughts?: boolean // 导出包含思维链
   packaging?: ExportPackaging // 导出打包方式
+  defaultExportFormat?: ExportFormatSetting // 快捷键与一键导出的默认格式
 }
+
+export type ExportFormatSetting = "markdown" | "json" | "txt" | "html"
 
 // AI Studio 设置
 export interface AIStudioSettings {

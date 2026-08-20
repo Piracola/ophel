@@ -13,7 +13,7 @@ import { platform } from "~platform"
 import { useSettingsStore } from "~stores/settings-store"
 import { t } from "~utils/i18n"
 import { MSG_CHECK_PERMISSIONS, MSG_REQUEST_PERMISSIONS, sendToBackground } from "~utils/messaging"
-import type { ExportPackaging, FormulaCopyFormat } from "~utils/storage"
+import type { ExportFormatSetting, ExportPackaging, FormulaCopyFormat } from "~utils/storage"
 import {
   aggregateUsageEvents,
   getUsageEvents,
@@ -656,6 +656,13 @@ const FeaturesPage: React.FC<FeaturesPageProps> = ({ siteId, initialTab }) => {
     { value: "markdown", label: t("exportPackagingMarkdown") },
     { value: "zip", label: t("exportPackagingZip") },
   ]
+  const defaultExportFormat = settings.export?.defaultExportFormat ?? "markdown"
+  const defaultExportFormatOptions = [
+    { value: "markdown", label: t("exportToMarkdown") },
+    { value: "json", label: t("exportToJSON") },
+    { value: "txt", label: t("exportToTXT") },
+    { value: "html", label: t("exportToHTML") },
+  ]
   const formulaCopyFormat = settings.content?.formulaCopyFormat === "mathml" ? "mathml" : "latex"
   const formulaCopyFormatOptions = [
     { value: "latex", label: t("formulaCopyFormatLatex") },
@@ -1293,6 +1300,22 @@ const FeaturesPage: React.FC<FeaturesPageProps> = ({ siteId, initialTab }) => {
 
           {/* 导出设置卡片 */}
           <SettingCard title={t("exportSettings")}>
+            <SettingRow
+              label={t("exportDefaultFormatLabel")}
+              description={t("exportDefaultFormatDesc")}
+              settingId="export-default-format">
+              <SelectDropdown
+                className="settings-select-dropdown"
+                buttonClassName="settings-select"
+                options={defaultExportFormatOptions}
+                value={defaultExportFormat}
+                ariaLabel={t("exportDefaultFormatLabel")}
+                onChange={(value) =>
+                  updateNestedSetting("export", "defaultExportFormat", value as ExportFormatSetting)
+                }
+              />
+            </SettingRow>
+
             <SettingRow
               label={t("exportPackagingLabel")}
               description={t("exportPackagingDesc")}

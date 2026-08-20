@@ -45,7 +45,8 @@
     "customModelName": "",
     "exportFilenameTimestamp": false,
     "includeThoughts": true,
-    "packaging": "markdown"
+    "packaging": "markdown",
+    "defaultExportFormat": "markdown"
   },
 
   "theme": {

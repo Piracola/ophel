@@ -1202,6 +1202,7 @@ export const ja = {
   exportMetaSource: "ソース",
   exportNotSupported: "このサイトでは出力がサポートされていません",
   exportToTXT: "TXT形式",
+  exportToHTML: "HTML",
   exportMetaUrl: "リンク",
   exportUntitled: "無題",
   exportToClipboard: "Markdownをコピー",
@@ -1686,9 +1687,15 @@ export const ja = {
   exportFilenameTimestamp: "エクスポート名にタイムスタンプを追加",
   exportFilenameTimestampDesc: "エクスポートしたファイル名の末尾にタイムスタンプを追加します",
   exportIncludeThoughtsLabel: "エクスポートに思考過程を含める",
-  exportIncludeThoughtsDesc: "エクスポート時に思考過程を含めて自動展開します（引用ブロックで区別）",
+  exportThoughtCollapsedLabel: "思考過程",
+  exportIncludeThoughtsDesc:
+    "エクスポート時に思考過程を含めます。既定では折りたたまれ、クリックで展開できます",
   exportAttachmentsLabel: "添付ファイル",
   exportPackagingLabel: "Markdownエクスポート方式",
+  exportDefaultFormatLabel: "デフォルトのエクスポート形式",
+  exportDefaultFormatDesc:
+    "ショートカットキーとワンクリック書き出しで使う既定の形式を設定します（Markdown / JSON / TXT / HTML）",
+
   exportPackagingDesc:
     "ZIPにはMarkdownファイルとダウンロード可能な添付ファイルが含まれ、添付ファイルはassetsに保存され相対パスで参照されます",
   exportPackagingMarkdown: "Markdown",

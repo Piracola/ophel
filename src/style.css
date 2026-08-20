@@ -3642,6 +3642,106 @@
 }
 
 /* ============= 快捷菜单 (工具箱) ============= */
+/* 导出/会话菜单（.gh-menu）与工具箱 quick-menu 共用同一套设计语言：
+   12px 圆角、--gh-* 变量、hover/focus 状态。样式同时注入主文档
+   （ConversationMenus.tsx 经 Portal 渲染到 body，面板 Shadow DOM 样式不适用）。 */
+.gh-menu {
+  background: var(--gh-bg, #ffffff);
+  border: 1px solid var(--gh-border, #e5e7eb);
+  border-radius: 12px;
+  box-shadow: var(--gh-shadow, 0 6px 16px rgba(0, 0, 0, 0.1));
+  padding: 6px;
+  min-width: 160px;
+}
+
+.gh-menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--gh-text, #111827);
+  cursor: pointer;
+  border-radius: 8px;
+  white-space: nowrap;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.gh-menu-btn:hover {
+  background: color-mix(in srgb, var(--gh-text) 6%, transparent);
+}
+
+.gh-menu-btn:focus-visible {
+  outline: 2px solid var(--gh-primary, #10b981);
+  outline-offset: -2px;
+}
+
+.gh-menu-btn.danger {
+  color: var(--gh-text-danger, #ef4444);
+}
+
+.gh-menu-btn svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.gh-menu-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--gh-border, #e5e7eb);
+}
+
+/* 工具箱三级导出子菜单：Portal 到 Shadow Root 顶层，position: fixed + JS clamp 定位，
+   保证任意屏幕位置展开都完整可见。side-* 仅用于入场动画方向。 */
+.gh-export-submenu {
+  min-width: 168px;
+  padding: 6px;
+  background: var(--gh-bg, #ffffff);
+  border: 1px solid var(--gh-border, #e5e7eb);
+  border-radius: 12px;
+  box-shadow: var(--gh-shadow, 0 6px 16px rgba(0, 0, 0, 0.1));
+  z-index: 2147483647;
+}
+
+.gh-export-submenu.side-left {
+  transform-origin: left center;
+  animation: export-submenu-enter-left 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.gh-export-submenu.side-right {
+  transform-origin: right center;
+  animation: export-submenu-enter-right 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes export-submenu-enter-left {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes export-submenu-enter-right {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .quick-menu-popover {
   position: absolute;
   top: 50%;

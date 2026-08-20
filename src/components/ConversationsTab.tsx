@@ -1591,6 +1591,12 @@ export const ConversationsTab: React.FC<ConversationsTabProps> = ({
               selectedIds.size > 0 ? Array.from(selectedIds)[0] : manager.siteAdapter.getSessionId()
             await manager.exportConversation(convId, "txt")
           }}
+          onExportHTML={async () => {
+            setMenu(null)
+            const convId =
+              selectedIds.size > 0 ? Array.from(selectedIds)[0] : manager.siteAdapter.getSessionId()
+            await manager.exportConversation(convId, "html")
+          }}
           onSegmentedExport={() => {
             void openSegmentedExportDialog()
           }}
@@ -1612,6 +1618,10 @@ export const ConversationsTab: React.FC<ConversationsTabProps> = ({
           onExportTXT={async () => {
             setMenu(null)
             await manager.exportConversation(menu.conv.id, "txt")
+          }}
+          onExportHTML={async () => {
+            setMenu(null)
+            await manager.exportConversation(menu.conv.id, "html")
           }}
           onSegmentedExport={() => {
             void openSegmentedExportDialog(menu.conv)

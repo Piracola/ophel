@@ -1075,6 +1075,7 @@ export const zhTW = {
   exportMetaSource: "來源",
   exportNotSupported: "目前站點不支援匯出",
   exportToTXT: "TXT",
+  exportToHTML: "HTML",
   exportMetaUrl: "連結",
   exportUntitled: "未命名",
   exportToClipboard: "複製 Markdown",
@@ -1616,9 +1617,13 @@ export const zhTW = {
   exportFilenameTimestamp: "導出文件名包含時間戳",
   exportFilenameTimestampDesc: "在導出文件名末尾添加時間戳",
   exportIncludeThoughtsLabel: "匯出包含思維鏈",
-  exportIncludeThoughtsDesc: "匯出時包含並自動展開思維鏈內容（使用引用區塊區分）",
+  exportThoughtCollapsedLabel: "思考過程",
+  exportIncludeThoughtsDesc: "匯出時包含思維鏈內容，預設摺疊為「思考過程」，讀者可點擊展開",
   exportAttachmentsLabel: "附件",
   exportPackagingLabel: "Markdown 匯出方式",
+  exportDefaultFormatLabel: "預設匯出格式",
+  exportDefaultFormatDesc: "設定快捷鍵與一鍵匯出使用的預設格式（Markdown / JSON / TXT / HTML）",
+
   exportPackagingDesc:
     "ZIP 會包含 Markdown 檔案與可下載附件，" + "附件放入 assets 並以相對路徑引用",
   exportPackagingMarkdown: "Markdown",

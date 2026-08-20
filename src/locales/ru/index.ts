@@ -1173,6 +1173,7 @@ export const ru = {
   exportMetaSource: "Источник",
   exportNotSupported: "Не работает здесь",
   exportToTXT: "TXT",
+  exportToHTML: "HTML",
   exportMetaUrl: "Ссылка",
   exportUntitled: "Без темы",
   exportToClipboard: "Скопировать Markdown",
@@ -1805,10 +1806,15 @@ export const ru = {
   exportFilenameTimestamp: "Добавлять отметку времени к имени файла",
   exportFilenameTimestampDesc: "Добавляет отметку времени в конец имени экспортируемого файла",
   exportIncludeThoughtsLabel: "Включать рассуждения при экспорте",
+  exportThoughtCollapsedLabel: "Процесс мышления",
   exportIncludeThoughtsDesc:
-    "Включать и автоматически разворачивать рассуждения при экспорте (в виде цитатных блоков)",
+    "Включать ход мыслей при экспорте; он свернут под переключателем «Процесс мышления», который читатели могут развернуть",
   exportAttachmentsLabel: "Вложения",
   exportPackagingLabel: "Способ экспорта Markdown",
+  exportDefaultFormatLabel: "Формат экспорта по умолчанию",
+  exportDefaultFormatDesc:
+    "Задает формат по умолчанию для сочетания клавиш и быстрого экспорта (Markdown / JSON / TXT / HTML)",
+
   exportPackagingDesc:
     "ZIP включает файл Markdown и загружаемые вложения, сохраняет вложения в assets и ссылается на них относительными путями.",
   exportPackagingMarkdown: "Markdown",

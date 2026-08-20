@@ -23,6 +23,7 @@ export type {
   AIStudioSettings,
   ChatGPTSettings,
   CustomStyle,
+  ExportFormatSetting,
   ExportPackaging,
   ExportSettings,
   FormulaCopyFormat,

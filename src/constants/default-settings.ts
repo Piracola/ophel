@@ -121,6 +121,7 @@ export const DEFAULT_SETTINGS: Settings = {
     exportFilenameTimestamp: false,
     includeThoughts: true,
     packaging: "markdown",
+    defaultExportFormat: "markdown",
   },
 
   theme: {

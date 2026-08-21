@@ -283,11 +283,19 @@ const normalizeExportSettings = (
     exportSettings?.packaging === "zip" || exportSettings?.packaging === "markdown"
       ? exportSettings.packaging
       : defaults.packaging
+  const defaultExportFormat =
+    exportSettings?.defaultExportFormat === "markdown" ||
+    exportSettings?.defaultExportFormat === "json" ||
+    exportSettings?.defaultExportFormat === "txt" ||
+    exportSettings?.defaultExportFormat === "html"
+      ? exportSettings.defaultExportFormat
+      : defaults.defaultExportFormat
 
   return {
     ...defaults,
     ...exportSettings,
     packaging,
+    defaultExportFormat,
   }
 }
 

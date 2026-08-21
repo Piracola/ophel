@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { formatToHTML, type ExportMessage, type ExportMetadata } from "~utils/exporter"
+import { setLanguage } from "~utils/i18n"
 
 const metadata: ExportMetadata = {
   title: "thought test",
@@ -10,6 +11,22 @@ const metadata: ExportMetadata = {
 }
 
 const assistant = (content: string): ExportMessage => ({ role: "assistant", content })
+
+describe("formatToHTML theme labels localization", () => {
+  it("reflects language changes dynamically in embedded script labels", () => {
+    setLanguage("zh-CN")
+    const zhHtml = formatToHTML(metadata, [assistant("test")])
+    expect(zhHtml).toContain('"auto":"跟随系统"')
+    expect(zhHtml).toContain('"light":"浅色"')
+    expect(zhHtml).toContain('"dark":"深色"')
+
+    setLanguage("en")
+    const enHtml = formatToHTML(metadata, [assistant("test")])
+    expect(enHtml).toContain('"auto":"Auto"')
+    expect(enHtml).toContain('"light":"Light"')
+    expect(enHtml).toContain('"dark":"Dark"')
+  })
+})
 
 describe("formatToHTML thought grouping", () => {
   it("wraps a thought blockquote in a collapsed details section", () => {

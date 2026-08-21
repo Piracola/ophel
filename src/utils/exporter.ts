@@ -893,12 +893,6 @@ function renderExportMarkdown(content: string): string {
   return html
 }
 
-const HTML_THEME_LABELS = JSON.stringify({
-  auto: t("themeAuto"),
-  light: t("themeLight"),
-  dark: t("themeDark"),
-})
-
 const EXPORT_HTML_CSS = `
 :root {
   --gh-bg: #f7f6f4;
@@ -1243,11 +1237,18 @@ math { font-family: "Cambria Math", "STIX Two Math", "Latin Modern Math", "Times
 }
 `
 
-const EXPORT_HTML_JS = `
+function getExportHtmlJs(): string {
+  const themeLabels = JSON.stringify({
+    auto: t("themeAuto"),
+    light: t("themeLight"),
+    dark: t("themeDark"),
+  })
+
+  return `
 (function () {
   "use strict";
   var KEY = "gh-export-theme";
-  var LABELS = ${HTML_THEME_LABELS};
+  var LABELS = ${themeLabels};
 
   function resolve(mode) {
     if (mode === "light" || mode === "dark") return mode;
@@ -1320,6 +1321,7 @@ const EXPORT_HTML_JS = `
   });
 })();
 `
+}
 
 const SUN_ICON_SVG =
   '<svg class="gh-icon-sun" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4l1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4m11.4-11.4l1.4-1.4"></path></svg>'
@@ -1369,7 +1371,7 @@ export function formatToHTML(metadata: ExportMetadata, messages: ExportMessage[]
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
 <style>${EXPORT_HTML_CSS}</style>
-<script>${EXPORT_HTML_JS}</script>
+<script>${getExportHtmlJs()}</script>
 </head>
 <body>
 <main class="gh-shell">

@@ -1,5 +1,3 @@
-import { getKatexStylesText } from "./katex"
-
 type RenderMarkdownOptions = {
   enableMath?: boolean
 }
@@ -53,8 +51,6 @@ export const createMarkdownIt = (
   }
   return vendor.createMarkdownIt(enableMath, linkGithubReferences, mathRenderer)
 }
-
-export const getMathStyles = (): string => getKatexStylesText()
 
 export const getHighlightStyles = (): string => {
   if (typeof window === "undefined") return ""

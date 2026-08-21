@@ -11,14 +11,8 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ### 🚀 New Features
 
-- **HTML export** — Conversations can now be exported as a single self-contained HTML file with responsive layout, light/dark/auto theme switching, syntax-highlighted code blocks with copy buttons, native MathML formulas, and light-theme printing.
-- **Default export format** — Added a "Default Export Format" setting, so the export shortcut (Ctrl+Shift+E) and one-click export use a preferred format (Markdown / JSON / TXT / HTML) instead of always Markdown.
-
-### ✨ Improvements
-
-- **Unified export menu** — The toolbox export button now opens the same format menu as the conversation list (Markdown / JSON / TXT / HTML / Copy as Markdown / Export Segments), with copy-as-Markdown grouped under export.
-- **HTML export: collapsible thinking process** — Thinking/reasoning content in HTML exports is collapsed under a "Thinking process" toggle by default, so readers see the answer first and can expand the reasoning on demand.
-- **HTML export: clearer user/assistant distinction** — User messages now get a stronger tinted background, a left accent bar, and a colored role label, making it easier to tell questions from answers at a glance.
+- **HTML export** — Conversations can now be exported as a single self-contained HTML file with responsive layout, light/dark/auto theme switching, syntax-highlighted code blocks with copy buttons, native MathML formulas, a collapsible "Thinking process" section, and light-theme printing.
+- **Default export format** — Added a "Default Export Format" setting, so the export shortcut and quick export use a preferred format (Markdown / JSON / TXT / HTML) instead of always Markdown.
 
 ---
 
@@ -27,6 +21,7 @@ versioning follows [Semantic Versioning](https://semver.org/).
 ### 🚀 New Features
 
 - **Proton Lumo support** — The online adapter library now includes Proton Lumo (lumo.proton.me); installing the pack enables outlines with user queries, basic export, generation detection and stop, chat width, Zen Mode, Clean Mode, new chat, and prompt insertion.
+- **Genspark support** — The online adapter library now includes Genspark (genspark.ai); installing the pack enables outlines with user queries, basic export, generation detection and stop, chat width, Zen Mode, new chat, prompt insertion, and Clean Mode. (#851)
 
 ### ✨ Improvements
 

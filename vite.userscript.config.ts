@@ -290,6 +290,11 @@ async function buildMarkdownVendor(): Promise<void> {
     resolve: {
       alias: {
         "~platform/katex": path.resolve(__dirname, "src/platform/userscript/katex.ts"),
+        "~platform/impl": path.resolve(
+          __dirname,
+          "src/platform/userscript/vendor-bridge/platform.ts",
+        ),
+        "~platform": path.resolve(__dirname, "src/platform"),
         "~": path.resolve(__dirname, "src"),
       },
     },

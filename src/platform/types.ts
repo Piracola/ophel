@@ -128,6 +128,28 @@ export interface PlatformSitePacks {
 }
 
 /**
+ * 数学公式渲染能力
+ */
+export interface PlatformMath {
+  /**
+   * 将 LaTeX 渲染为 HTML + MathML（面板内展示）
+   */
+  renderKatexToString(content: string, options: { displayMode: boolean }): string
+
+  /**
+   * 将 LaTeX 渲染为纯 MathML（自包含导出文档）
+   */
+  renderKatexToMathML(content: string, options: { displayMode: boolean }): string
+
+  /**
+   * 获取 KaTeX CSS 样式文本。
+   * 扩展端依赖 raw:/url: 构建资源，因此通过动态导入按需加载，
+   * 避免让 Vitest 等非扩展构建在模块加载阶段解析这些协议。
+   */
+  getKatexStylesText(): Promise<string>
+}
+
+/**
  * 平台能力接口
  */
 export interface Platform {
@@ -140,6 +162,11 @@ export interface Platform {
    * 存储接口
    */
   readonly storage: PlatformStorage
+
+  /**
+   * 数学公式渲染
+   */
+  readonly math: PlatformMath
 
   /**
    * 适配配置远程更新

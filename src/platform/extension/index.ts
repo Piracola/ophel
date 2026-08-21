@@ -23,6 +23,7 @@ import {
   MSG_REMOVE_LOCAL_REMOTE_CONFIG_PATCH,
   sendToBackground,
 } from "~utils/messaging"
+import { renderKatexToMathML, renderKatexToString } from "../katex-render"
 import { extensionStorage } from "./storage"
 
 export { extensionStorage }
@@ -41,6 +42,15 @@ export const platform: Platform = {
   type: "extension",
 
   storage: extensionStorage,
+
+  math: {
+    renderKatexToString,
+    renderKatexToMathML,
+    async getKatexStylesText() {
+      const { getKatexStylesText } = await import("../katex")
+      return getKatexStylesText()
+    },
+  },
 
   remoteConfig: {
     async getState() {

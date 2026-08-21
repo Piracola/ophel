@@ -9,7 +9,8 @@ import type { SiteAdapter } from "~adapters/base"
 import { SITE_IDS } from "~constants"
 import { DOMToolkit } from "~utils/dom-toolkit"
 import { initCopyButtons, showCopySuccess } from "~utils/icons"
-import { getHighlightStyles, getMathStyles, renderMarkdown } from "~utils/markdown"
+import { getMathStyles } from "~utils/katex-styles"
+import { getHighlightStyles, renderMarkdown } from "~utils/markdown"
 
 // Markdown 语法检测规则
 const BLOCK_MARKDOWN_PATTERNS = [
@@ -501,7 +502,7 @@ export class UserQueryMarkdownRenderer {
       this.startRescanTimer()
     } else {
       // 普通站点：注入全局样式和事件处理
-      this.injectGlobalStyles()
+      void this.injectGlobalStyles()
       this.initCodeCopyHandler()
 
       // 使用 DOMToolkit.each() 监听
@@ -525,8 +526,8 @@ export class UserQueryMarkdownRenderer {
   /**
    * 注入样式到 document.head
    */
-  private injectGlobalStyles() {
-    const styleText = this.getStyleText()
+  private async injectGlobalStyles() {
+    const styleText = await this.getStyleText()
     let style = document.getElementById(STYLE_ID)
 
     if (!style) {
@@ -543,8 +544,8 @@ export class UserQueryMarkdownRenderer {
   /**
    * 注入样式到 Shadow DOM（用于 Gemini Enterprise）
    */
-  private injectStyleToShadowRoot(shadowRoot: ShadowRoot) {
-    const styleText = this.getStyleText()
+  private async injectStyleToShadowRoot(shadowRoot: ShadowRoot) {
+    const styleText = await this.getStyleText()
     const existingStyle = shadowRoot.querySelector(`#${STYLE_ID}`)
     if (existingStyle) {
       if (existingStyle.textContent !== styleText) {
@@ -566,8 +567,9 @@ export class UserQueryMarkdownRenderer {
     }
   }
 
-  private getStyleText(): string {
-    return [getHighlightStyles(), getMathStyles(), getUserQueryMarkdownStyles()]
+  private async getStyleText(): Promise<string> {
+    const mathStyles = await getMathStyles()
+    return [getHighlightStyles(), mathStyles, getUserQueryMarkdownStyles()]
       .filter(Boolean)
       .join("\n")
   }
@@ -663,7 +665,7 @@ export class UserQueryMarkdownRenderer {
     if (this.adapter.usesShadowDOM()) {
       const markdown = element.querySelector("ucs-fast-markdown")
       if (markdown?.shadowRoot) {
-        this.injectStyleToShadowRoot(markdown.shadowRoot)
+        void this.injectStyleToShadowRoot(markdown.shadowRoot)
       }
     }
 

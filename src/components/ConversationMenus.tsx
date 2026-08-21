@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
 import {
-  CopyIcon,
   ExportIcon,
   HTMLFileIcon,
   JSONFileIcon,
@@ -22,56 +21,35 @@ import { t } from "~utils/i18n"
 
 // ==================== 菜单样式  ====================
 
-// 菜单样式由 src/style.css 中的 .gh-menu-* 类提供（与工具箱 quick-menu 同一套设计语言）。
-// 面板样式经 getStyle() 注入 Shadow DOM，但菜单通过 Portal 渲染到 document.body，
-// 因此仍需要在这里把样式注入主文档，保证菜单在所有宿主页面上可用。
 const MENU_STYLES = `
-  .gh-menu {
-    background: var(--gh-bg, #ffffff);
+  .conversations-folder-menu {
+    background: var(--gh-bg, white);
     border: 1px solid var(--gh-border, #e5e7eb);
-    border-radius: 12px;
-    box-shadow: var(--gh-shadow, 0 6px 16px rgba(0, 0, 0, 0.1));
-    padding: 6px;
-    min-width: 160px;
+    border-radius: 6px;
+    box-shadow: var(--gh-shadow, 0 4px 12px rgba(0,0,0,0.15));
+    z-index: 10000000;
+    padding: 3px;
+    min-width: 80px;
   }
-  .gh-menu-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 7px 10px;
-    border: none;
-    background: transparent;
-    text-align: left;
-    font-size: 13px;
-    font-family: inherit;
-    color: var(--gh-text, #111827);
-    cursor: pointer;
-    border-radius: 8px;
-    white-space: nowrap;
-    transition: background 0.2s ease, color 0.2s ease;
-  }
-  .gh-menu-btn:hover {
-    background: color-mix(in srgb, var(--gh-text) 6%, transparent);
-  }
-  .gh-menu-btn:focus-visible {
-    outline: 2px solid var(--gh-primary, #10b981);
-    outline-offset: -2px;
-  }
-  .gh-menu-btn.danger {
-    color: var(--gh-text-danger, #ef4444);
-  }
-  .gh-menu-btn svg {
+  .conversations-folder-menu button {
     display: block;
-    flex-shrink: 0;
+    width: 100%;
+    padding: 6px 10px;
+    border: none;
+    background: none;
+    text-align: left;
+    font-size: 12px;
+    color: var(--gh-text, #374151);
+    cursor: pointer;
+    border-radius: 4px;
+    white-space: nowrap;
   }
-  .gh-menu-divider {
-    height: 1px;
-    margin: 4px 6px;
-    background: var(--gh-border, #e5e7eb);
+  .conversations-folder-menu button:hover {
+    background: var(--gh-hover, #f3f4f6);
   }
 `
 
+// 样式注入状态
 let menuStyleInjected = false
 
 const injectMenuStyles = () => {
@@ -191,7 +169,7 @@ export const ContextMenu: React.FC<MenuProps> = ({ anchorEl, anchorPoint, onClos
   const menuContent = (
     <div
       ref={menuRef}
-      className="gh-menu"
+      className="conversations-folder-menu"
       {...OPHEL_HOVER_WIDTH_RETAIN_LAYER_PROPS}
       style={{
         position: "fixed",
@@ -216,7 +194,9 @@ interface MenuButtonProps {
 }
 
 export const MenuButton: React.FC<MenuButtonProps> = ({ onClick, danger, children }) => (
-  <button onClick={onClick} className={`gh-menu-btn${danger ? " danger" : ""}`}>
+  <button
+    onClick={onClick}
+    style={danger ? { color: "var(--gh-text-danger, #ef4444)" } : undefined}>
     {children}
   </button>
 )
@@ -435,7 +415,6 @@ interface ExportMenuProps {
   onExportJSON: () => void
   onExportTXT: () => void
   onExportHTML: () => void
-  onCopyMarkdown?: () => void
   onSegmentedExport?: () => void
 }
 
@@ -447,7 +426,6 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({
   onExportJSON,
   onExportTXT,
   onExportHTML,
-  onCopyMarkdown,
   onSegmentedExport,
 }) => {
   return (
@@ -457,56 +435,59 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({
           onClose()
           onExportMarkdown()
         }}>
-        <MarkdownIcon size={14} />
-        <span>{t("exportToMarkdown")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <MarkdownIcon size={14} />
+          <span>{t("exportToMarkdown")}</span>
+        </div>
       </MenuButton>
       <MenuButton
         onClick={() => {
           onClose()
           onExportJSON()
         }}>
-        <JSONFileIcon size={14} />
-        <span>{t("exportToJSON")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <JSONFileIcon size={14} />
+          <span>{t("exportToJSON")}</span>
+        </div>
       </MenuButton>
       <MenuButton
         onClick={() => {
           onClose()
           onExportTXT()
         }}>
-        <TXTFileIcon size={14} />
-        <span>{t("exportToTXT")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <TXTFileIcon size={14} />
+          <span>{t("exportToTXT")}</span>
+        </div>
       </MenuButton>
       <MenuButton
         onClick={() => {
           onClose()
           onExportHTML()
         }}>
-        <HTMLFileIcon size={14} />
-        <span>{t("exportToHTML")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <HTMLFileIcon size={14} />
+          <span>{t("exportToHTML")}</span>
+        </div>
       </MenuButton>
-      {onCopyMarkdown && (
-        <>
-          <div className="gh-menu-divider" />
-          <MenuButton
-            onClick={() => {
-              onClose()
-              onCopyMarkdown()
-            }}>
-            <CopyIcon size={14} />
-            <span>{t("exportToClipboard")}</span>
-          </MenuButton>
-        </>
-      )}
       {onSegmentedExport && (
         <>
-          <div className="gh-menu-divider" />
+          <div
+            style={{
+              height: "1px",
+              background: "var(--gh-border, #e5e7eb)",
+              margin: "3px 4px",
+            }}
+          />
           <MenuButton
             onClick={() => {
               onClose()
               onSegmentedExport()
             }}>
-            <SegmentedExportIcon size={14} />
-            <span>{t("segmentedExportMenuItem")}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <SegmentedExportIcon size={14} />
+              <span>{t("segmentedExportMenuItem")}</span>
+            </div>
           </MenuButton>
         </>
       )}

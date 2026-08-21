@@ -1182,6 +1182,7 @@ export const es = {
   exportNotSupported: "No soportado aquí",
   exportToTXT: "TXT",
   exportToHTML: "HTML",
+  exportToHTMLMenu: "Exportar HTML",
   exportMetaUrl: "Enlace",
   exportUntitled: "Sin Título",
   exportToClipboard: "Copiar Markdown",

@@ -1,4 +1,3 @@
-import katex from "katex"
 import katexStylesText from "raw:katex/dist/katex.min.css"
 import katexAmsRegularWoff2Url from "url:katex/dist/fonts/KaTeX_AMS-Regular.woff2"
 import katexCaligraphicBoldWoff2Url from "url:katex/dist/fonts/KaTeX_Caligraphic-Bold.woff2"
@@ -21,9 +20,10 @@ import katexSize3RegularWoff2Url from "url:katex/dist/fonts/KaTeX_Size3-Regular.
 import katexSize4RegularWoff2Url from "url:katex/dist/fonts/KaTeX_Size4-Regular.woff2"
 import katexTypewriterRegularWoff2Url from "url:katex/dist/fonts/KaTeX_Typewriter-Regular.woff2"
 
-export type KatexRenderOptions = {
-  displayMode: boolean
-}
+// 渲染函数放在独立的 katex-render 模块：只依赖 katex npm 包，
+// 不含 Plasmo 的 raw:/url: 构建资源，保证 Vitest 等非扩展构建可以加载。
+export { renderKatexToMathML, renderKatexToString } from "./katex-render"
+export type { KatexRenderOptions } from "./katex-render"
 
 type ExtensionRuntimeLike = {
   getURL: (path: string) => string
@@ -55,14 +55,6 @@ const KATEX_WOFF2_ASSET_URLS: Record<string, string> = {
   "fonts/KaTeX_Size4-Regular.woff2": katexSize4RegularWoff2Url,
   "fonts/KaTeX_Typewriter-Regular.woff2": katexTypewriterRegularWoff2Url,
 }
-
-const escapeHtml = (value: string): string =>
-  value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
 
 const getExtensionGetUrl = (): ((path: string) => string) | null => {
   const extensionApi =
@@ -116,54 +108,3 @@ const rewriteKatexAssetUrls = (cssText: string): string => {
 
 export const getKatexStylesText = (): string =>
   rewriteKatexAssetUrls(stripKatexLegacyFontFormats(katexStylesText))
-
-const wrapKatexResult = (latex: string, rendered: string, displayMode: boolean): string => {
-  const className = displayMode ? "math-block gh-rendered-math" : "math-inline gh-rendered-math"
-  const tagName = displayMode ? "div" : "span"
-
-  return `<${tagName} class="${className}" data-math="${escapeHtml(latex)}">${rendered}</${tagName}>`
-}
-
-export const renderKatexToString = (
-  content: string,
-  { displayMode }: KatexRenderOptions,
-): string => {
-  const latex = content.replace(/\r\n?/g, "\n").trim()
-
-  try {
-    const rendered = katex.renderToString(latex, {
-      displayMode,
-      output: "htmlAndMathml",
-      throwOnError: false,
-      strict: "ignore",
-      trust: false,
-    })
-    return wrapKatexResult(latex, rendered, displayMode)
-  } catch {
-    const fallback = displayMode ? `$$\n${latex}\n$$` : `$${latex}$`
-    return wrapKatexResult(latex, `<code>${escapeHtml(fallback)}</code>`, displayMode)
-  }
-}
-
-/**
- * 渲染为纯 MathML（无字体依赖，适合自包含的导出文档）
- */
-export const renderKatexToMathML = (
-  content: string,
-  { displayMode }: KatexRenderOptions,
-): string => {
-  const latex = content.replace(/\r\n?/g, "\n").trim()
-
-  try {
-    const rendered = katex.renderToString(latex, {
-      displayMode,
-      output: "mathml",
-      throwOnError: false,
-      strict: "ignore",
-      trust: false,
-    })
-    return wrapKatexResult(latex, rendered, displayMode)
-  } catch {
-    return wrapKatexResult(latex, `<math><mtext>${escapeHtml(latex)}</mtext></math>`, displayMode)
-  }
-}

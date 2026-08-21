@@ -150,6 +150,8 @@ export const SETTING_SEARCH_TITLE_KEY_MAP: Record<string, string> = {
   "tab-hide-status-when-read": "hideStatusWhenReadLabel",
   "tab-title-format": "titleFormatLabel",
   "tools-menu-export": "export",
+  "tools-menu-exportHTML": "exportToHTMLMenu",
+  "tools-menu-copyMarkdown": "exportToClipboard",
   "tools-menu-move": "conversationsMoveTo",
   "tools-menu-setTag": "conversationsSetTag",
   "tools-menu-scrollLock": "shortcutToggleScrollLock",

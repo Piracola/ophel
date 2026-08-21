@@ -17,6 +17,7 @@ import {
   TAB_DEFINITIONS,
   TOOLS_MENU_IDS,
   TOOLS_MENU_ITEMS,
+  getDefaultToolsMenuIds,
 } from "~constants"
 import { useSettingsStore } from "~stores/settings-store"
 import { t } from "~utils/i18n"
@@ -849,7 +850,7 @@ const GeneralPage: React.FC<GeneralPageProps> = ({
       {activeTab === "toolsMenu" && (
         <SettingCard title={t("toolboxMenuTitle")} description={t("toolboxMenuDesc")}>
           {TOOLS_MENU_ITEMS.filter((item) => item.id !== TOOLS_MENU_IDS.SETTINGS).map((item) => {
-            const enabledIds = settings.quickButtons?.toolsMenu ?? TOOLS_MENU_ITEMS.map((i) => i.id)
+            const enabledIds = settings.quickButtons?.toolsMenu ?? getDefaultToolsMenuIds()
             const isEnabled = enabledIds.includes(item.id)
             return (
               <ToggleRow
@@ -858,8 +859,7 @@ const GeneralPage: React.FC<GeneralPageProps> = ({
                 settingId={`tools-menu-${item.id}`}
                 checked={isEnabled}
                 onChange={() => {
-                  const currentIds =
-                    settings.quickButtons?.toolsMenu ?? TOOLS_MENU_ITEMS.map((i) => i.id)
+                  const currentIds = settings.quickButtons?.toolsMenu ?? getDefaultToolsMenuIds()
                   const newIds = isEnabled
                     ? currentIds.filter((id) => id !== item.id)
                     : [...currentIds, item.id]

@@ -29,7 +29,7 @@ import { full as emoji } from "markdown-it-emoji"
 import mark from "markdown-it-mark"
 import taskLists from "markdown-it-task-lists"
 
-import { getKatexStylesText, renderKatexToString } from "~platform/katex"
+import { platform } from "~platform"
 
 // 注册语言
 hljs.registerLanguage("javascript", javascript)
@@ -149,7 +149,7 @@ export const createMarkdownIt = (
   enableMath = false,
   linkGithubReferences = false,
   mathRenderer: MarkdownMathRenderer = (content, displayMode) =>
-    renderKatexToString(content, { displayMode }),
+    platform.math.renderKatexToString(content, { displayMode }),
 ): MarkdownIt => {
   const instance = new MarkdownIt({
     html: false, // 禁用 HTML 标签（安全）
@@ -251,8 +251,6 @@ export const renderMarkdown = (
 
   return html
 }
-
-export const getMathStyles = (): string => getKatexStylesText()
 
 function isUserscriptPlatform(): boolean {
   return typeof __PLATFORM__ !== "undefined" && __PLATFORM__ === "userscript"

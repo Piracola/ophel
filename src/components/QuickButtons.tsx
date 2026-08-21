@@ -7,7 +7,6 @@ import React, {
   useState,
   useSyncExternalStore,
 } from "react"
-import { createPortal } from "react-dom"
 
 import {
   createFeatureCapabilitiesFromSignature,
@@ -16,27 +15,19 @@ import {
 } from "~adapters/feature-capabilities"
 import { getAdapter } from "~adapters/index"
 import { ThemeDarkIcon, ThemeLightIcon, EyeClosedIcon } from "~components/icons"
-import {
-  CopyIcon,
-  HTMLFileIcon,
-  JSONFileIcon,
-  MarkdownIcon,
-  SegmentedExportIcon,
-  TXTFileIcon,
-} from "~components/icons"
 import { LoadingOverlay } from "~components/LoadingOverlay"
 import { Tooltip } from "~components/ui/Tooltip"
 import {
   COLLAPSED_BUTTON_DEFS,
   TOOLS_MENU_IDS,
   TOOLS_MENU_ITEMS,
+  getDefaultToolsMenuIds,
   isBuiltinSiteId,
   type ToolsMenuId,
 } from "~constants"
 import type { ThemeTransitionOrigin } from "~core/theme-manager"
 import { anchorStore, withAnchorOp } from "~stores/anchor-store"
 import { useSettingsStore } from "~stores/settings-store"
-import type { ExportFormat } from "~utils/exporter"
 import { loadHistoryUntil } from "~utils/history-loader"
 import { OPHEL_HOVER_WIDTH_RETAIN_LAYER_PROPS } from "~utils/dom-toolkit"
 import { t } from "~utils/i18n"
@@ -63,7 +54,7 @@ interface QuickButtonsProps {
   onThemeToggle?: (event?: ThemeTransitionOrigin) => void
   themeMode?: "light" | "dark"
   // 工具栏功能
-  onExport?: (format: ExportFormat) => void
+  onExport?: () => void
   onMove?: () => void
   onSetTag?: () => void
   onScrollLock?: (locked: boolean) => void
@@ -72,6 +63,8 @@ interface QuickButtonsProps {
   onGlobalSearch?: () => void
   scrollLocked?: boolean
   // 新增功能
+  onCopyMarkdown?: () => void
+  onExportHTML?: () => void
   onSegmentedExport?: () => void
   onModelLockToggle?: () => void
   isModelLocked?: boolean
@@ -124,6 +117,8 @@ const COLLAPSED_BUTTON_CAPABILITY_REQUIREMENTS: Partial<Record<string, SitePackC
 const TOOLS_MENU_CAPABILITY_REQUIREMENTS: Partial<Record<ToolsMenuId, SitePackCapability>> = {
   [TOOLS_MENU_IDS.EXPORT]: "export-basic",
   [TOOLS_MENU_IDS.SEGMENTED_EXPORT]: "export-basic",
+  [TOOLS_MENU_IDS.EXPORT_HTML]: "export-basic",
+  [TOOLS_MENU_IDS.COPY_MARKDOWN]: "export-basic",
   [TOOLS_MENU_IDS.MOVE]: "conversation-list",
   [TOOLS_MENU_IDS.SET_TAG]: "conversation-list",
   [TOOLS_MENU_IDS.MODEL_LOCK]: "model-lock",
@@ -145,6 +140,8 @@ export const QuickButtons: React.FC<QuickButtonsProps> = ({
   onCleanup,
   onGlobalSearch,
   scrollLocked,
+  onCopyMarkdown,
+  onExportHTML,
   onSegmentedExport,
   onModelLockToggle,
   isModelLocked,
@@ -209,15 +206,6 @@ export const QuickButtons: React.FC<QuickButtonsProps> = ({
   // 工具菜单状态
   const groupRef = useRef<HTMLDivElement>(null)
   const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false)
-  const [exportMenuOpen, setExportMenuOpen] = useState(false)
-  // 三级导出子菜单位置（fixed 定位，基于视口 clamp 计算）
-  const [exportMenuPos, setExportMenuPos] = useState<{
-    left: number
-    top: number
-    flipToRight: boolean
-  } | null>(null)
-  const popoverRef = useRef<HTMLDivElement>(null)
-  const exportSubMenuRef = useRef<HTMLDivElement>(null)
   const [viewportSize, setViewportSize] = useState<ViewportSize>(readViewportSize)
   const viewportSizeRef = useRef<ViewportSize>(viewportSize)
   const metricsViewportRef = useRef<ViewportSize>(viewportSize)
@@ -237,51 +225,11 @@ export const QuickButtons: React.FC<QuickButtonsProps> = ({
       const target = e.target as Node
       if (groupRef.current && !groupRef.current.contains(target)) {
         setIsToolsMenuOpen(false)
-        setExportMenuOpen(false)
-        setExportMenuPos(null)
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [isToolsMenuOpen])
-
-  // 三级导出子菜单定位：以工具箱 popover 为锚点，默认贴左侧展开，
-  // 左侧放不下则翻转到右侧，仍放不下则靠视口边缘；垂直方向同样 clamp。
-  useEffect(() => {
-    if (!exportMenuOpen) {
-      setExportMenuPos(null)
-      return
-    }
-    const frame = requestAnimationFrame(() => {
-      const popover = popoverRef.current
-      const subMenu = exportSubMenuRef.current
-      if (!popover || !subMenu) return
-
-      const popRect = popover.getBoundingClientRect()
-      const subWidth = subMenu.offsetWidth
-      const subHeight = subMenu.offsetHeight
-      const gap = 6
-      const margin = 8
-
-      // 水平：默认贴 popover 左侧；放不下则右侧；再放不下则贴视口左缘
-      let left = popRect.left - subWidth - gap
-      let flipToRight = false
-      if (left < margin) {
-        left = popRect.right + gap
-        flipToRight = true
-        if (left + subWidth > window.innerWidth - margin) {
-          left = Math.max(margin, window.innerWidth - subWidth - margin)
-        }
-      }
-
-      // 垂直：与 popover 垂直居中对齐，超出上下边缘则贴边
-      let top = popRect.top + popRect.height / 2 - subHeight / 2
-      top = Math.max(margin, Math.min(top, window.innerHeight - subHeight - margin))
-
-      setExportMenuPos({ left, top, flipToRight })
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [exportMenuOpen])
 
   const [groupPosition, setGroupPosition] = useState<GroupPosition | null>(persistedGroupPosition)
   const [isDragging, setIsDragging] = useState(false)
@@ -829,10 +777,7 @@ export const QuickButtons: React.FC<QuickButtonsProps> = ({
     floatingToolbar: (e) => {
       e?.stopPropagation()
       // Toggle local menu state instead of settings
-      setIsToolsMenuOpen((prev) => {
-        if (prev) setExportMenuOpen(false)
-        return !prev
-      })
+      setIsToolsMenuOpen((prev) => !prev)
     },
     globalSearch: (e) => {
       e?.stopPropagation()
@@ -1057,7 +1002,10 @@ export const QuickButtons: React.FC<QuickButtonsProps> = ({
 
   // 工具菜单按钮点击处理器映射
   const toolsMenuActions: Record<string, () => void> = {
+    [TOOLS_MENU_IDS.EXPORT]: () => onExport?.(),
     [TOOLS_MENU_IDS.SEGMENTED_EXPORT]: () => onSegmentedExport?.(),
+    [TOOLS_MENU_IDS.EXPORT_HTML]: () => onExportHTML?.(),
+    [TOOLS_MENU_IDS.COPY_MARKDOWN]: () => onCopyMarkdown?.(),
     [TOOLS_MENU_IDS.MOVE]: () => onMove?.(),
     [TOOLS_MENU_IDS.SET_TAG]: () => onSetTag?.(),
     [TOOLS_MENU_IDS.SCROLL_LOCK]: () => onScrollLock?.(!scrollLocked),
@@ -1073,96 +1021,6 @@ export const QuickButtons: React.FC<QuickButtonsProps> = ({
     return false
   }
 
-  // 导出三级子菜单项：文件格式 + 复制 + 分段
-  const exportSubMenuItems: Array<{
-    key: string
-    label: string
-    icon: React.ReactNode
-    onSelect: () => void
-    dividerBefore?: boolean
-  }> = [
-    {
-      key: "markdown",
-      label: t("exportToMarkdown"),
-      icon: <MarkdownIcon size={14} />,
-      onSelect: () => onExport?.("markdown"),
-    },
-    {
-      key: "json",
-      label: t("exportToJSON"),
-      icon: <JSONFileIcon size={14} />,
-      onSelect: () => onExport?.("json"),
-    },
-    {
-      key: "txt",
-      label: t("exportToTXT"),
-      icon: <TXTFileIcon size={14} />,
-      onSelect: () => onExport?.("txt"),
-    },
-    {
-      key: "html",
-      label: t("exportToHTML"),
-      icon: <HTMLFileIcon size={14} />,
-      onSelect: () => onExport?.("html"),
-    },
-    {
-      key: "clipboard",
-      label: t("exportToClipboard"),
-      icon: <CopyIcon size={14} />,
-      onSelect: () => onExport?.("clipboard"),
-      dividerBefore: true,
-    },
-    {
-      key: "segmented",
-      label: t("segmentedExportMenuItem"),
-      icon: <SegmentedExportIcon size={14} />,
-      onSelect: () => onSegmentedExport?.(),
-      dividerBefore: true,
-    },
-  ]
-
-  // 渲染导出三级子菜单（gh-menu 设计语言，与工具箱菜单并排）
-  // 通过 Portal 渲染到 Shadow Root 顶层并用 position: fixed + 视口 clamp 定位，
-  // 保证任意屏幕位置展开都完整可见。位置计算前先以 visibility:hidden 挂载测量。
-  const renderExportSubMenu = () => {
-    if (!exportMenuOpen) return null
-    const hostNode = groupRef.current?.getRootNode()
-    const container = hostNode instanceof ShadowRoot ? hostNode : document.body
-    return createPortal(
-      <div
-        ref={exportSubMenuRef}
-        className={`gh-export-submenu ${exportMenuPos?.flipToRight ? "side-right" : "side-left"}`}
-        style={{
-          position: "fixed",
-          left: exportMenuPos ? `${exportMenuPos.left}px` : "0px",
-          top: exportMenuPos ? `${exportMenuPos.top}px` : "0px",
-          transform: "none",
-          visibility: exportMenuPos ? "visible" : "hidden",
-        }}
-        onPointerDown={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}>
-        {exportSubMenuItems.map((item) => (
-          <React.Fragment key={item.key}>
-            {item.dividerBefore && <div className="gh-menu-divider" />}
-            <button
-              className="gh-menu-btn"
-              onClick={() => {
-                item.onSelect()
-                setExportMenuOpen(false)
-                setExportMenuPos(null)
-                setIsToolsMenuOpen(false)
-              }}>
-              {item.icon}
-              <span>{item.label}</span>
-            </button>
-          </React.Fragment>
-        ))}
-      </div>,
-      container,
-    )
-  }
-
   // 渲染工具菜单项
   const renderToolsMenuItems = () => {
     const elements: React.ReactNode[] = []
@@ -1170,7 +1028,7 @@ export const QuickButtons: React.FC<QuickButtonsProps> = ({
     let lastWasSystem = false
 
     // 从设置中获取启用的菜单项，如果没有则使用默认全部显示
-    const enabledIds = quickButtonsSettings.toolsMenu ?? TOOLS_MENU_ITEMS.map((item) => item.id)
+    const enabledIds = quickButtonsSettings.toolsMenu ?? getDefaultToolsMenuIds()
     const enabledSet = new Set(enabledIds)
 
     for (const item of TOOLS_MENU_ITEMS) {
@@ -1199,13 +1057,7 @@ export const QuickButtons: React.FC<QuickButtonsProps> = ({
         <Tooltip key={item.id} content={t(item.labelKey)}>
           <button
             className={buttonClass}
-            onClick={(e) => {
-              // 导出按钮展开三级格式菜单，工具箱菜单保持打开
-              if (item.id === TOOLS_MENU_IDS.EXPORT) {
-                e.stopPropagation()
-                setExportMenuOpen((open) => !open)
-                return
-              }
+            onClick={() => {
               toolsMenuActions[item.id]?.()
               setIsToolsMenuOpen(false)
             }}>
@@ -1468,7 +1320,6 @@ export const QuickButtons: React.FC<QuickButtonsProps> = ({
         {/* 工具菜单 Popover */}
         {isToolsMenuOpen && (
           <div
-            ref={popoverRef}
             className={`quick-menu-popover ${toolsMenuSideClass}`}
             {...OPHEL_HOVER_WIDTH_RETAIN_LAYER_PROPS}
             onPointerDown={(e) => e.stopPropagation()}
@@ -1477,7 +1328,6 @@ export const QuickButtons: React.FC<QuickButtonsProps> = ({
             {renderToolsMenuItems()}
           </div>
         )}
-        {renderExportSubMenu()}
       </div>
     </>
   )

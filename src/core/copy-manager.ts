@@ -1,5 +1,5 @@
 import type { FormulaCopySource, SiteAdapter } from "~adapters/base"
-import { renderKatexToString } from "~platform/katex"
+import { platform } from "~platform"
 import { DOMToolkit } from "~utils/dom-toolkit"
 import { t } from "~utils/i18n"
 import { createCopyIcon, showCopySuccess } from "~utils/icons"
@@ -327,7 +327,7 @@ export class CopyManager {
     if (!normalizedLatex) return ""
 
     try {
-      const html = renderKatexToString(normalizedLatex, { displayMode: isBlock })
+      const html = platform.math.renderKatexToString(normalizedLatex, { displayMode: isBlock })
       const template = document.createElement("template")
       template.innerHTML = html
       return this.serializeMathElement(template.content.querySelector("math"))

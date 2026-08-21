@@ -1170,6 +1170,7 @@ export const zhCN = {
   exportNotSupported: "当前站点不支持导出",
   exportToTXT: "TXT",
   exportToHTML: "HTML",
+  exportToHTMLMenu: "HTML 导出",
   exportMetaUrl: "链接",
   exportUntitled: "未命名",
   exportToClipboard: "复制 Markdown",

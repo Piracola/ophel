@@ -1183,6 +1183,7 @@ export const fr = {
   exportNotSupported: "Non supporté ici",
   exportToTXT: "TXT",
   exportToHTML: "HTML",
+  exportToHTMLMenu: "Exporter en HTML",
   exportMetaUrl: "Lien",
   exportUntitled: "Sans Titre",
   exportToClipboard: "Copier Markdown",

@@ -38,7 +38,6 @@ import { useFoldersStore } from "~stores/folders-store"
 import { usePromptsStore } from "~stores/prompts-store"
 import { APP_DISPLAY_NAME, APP_VERSION } from "~utils/config"
 import { DEFAULT_SETTINGS, getSiteTheme, type Prompt } from "~utils/storage"
-import type { ExportFormat } from "~utils/exporter"
 import {
   EVENT_EXTENSION_UPDATE_AVAILABLE,
   EVENT_PAGE_URL_CHANGE,
@@ -2542,21 +2541,20 @@ export const App = () => {
     showToast(newState ? t("preventAutoScrollEnabled") : t("preventAutoScrollDisabled"))
   }, [setSettings])
 
-  const handleFloatingToolbarExport = useCallback(
-    async (format: ExportFormat) => {
-      if (!conversationManager || !adapter) return
-      const sessionId = adapter.getSessionId()
-      if (!sessionId) {
-        showToast(t("exportNeedOpenFirst"))
-        return
-      }
-      const success = await conversationManager.exportConversation(sessionId, format)
-      if (!success) {
-        showToast(t("exportFailed"))
-      }
-    },
-    [conversationManager, adapter],
-  )
+  const handleFloatingToolbarExport = useCallback(async () => {
+    if (!conversationManager || !adapter) return
+    const sessionId = adapter.getSessionId()
+    if (!sessionId) {
+      showToast(t("exportNeedOpenFirst"))
+      return
+    }
+    // 使用用户在设置中选择的默认导出格式（支持 HTML）
+    const format = settings.export?.defaultExportFormat ?? "markdown"
+    const success = await conversationManager.exportConversation(sessionId, format)
+    if (!success) {
+      showToast(t("exportFailed"))
+    }
+  }, [conversationManager, adapter, settings.export?.defaultExportFormat])
 
   const handleFloatingToolbarSegmentedExport = useCallback(async () => {
     if (!conversationManager || !adapter) return
@@ -2624,6 +2622,34 @@ export const App = () => {
     }
     showToast(`${t("cleared")} (${cleared})`)
   }, [outlineManager])
+
+  // 复制为 Markdown 处理器
+  const handleCopyMarkdown = useCallback(async () => {
+    if (!conversationManager || !adapter) return
+    const sessionId = adapter.getSessionId()
+    if (!sessionId) {
+      showToast(t("exportNeedOpenFirst"))
+      return
+    }
+    const success = await conversationManager.exportConversation(sessionId, "clipboard")
+    if (!success) {
+      showToast(t("exportFailed"))
+    }
+  }, [conversationManager, adapter])
+
+  // 工具箱直接导出 HTML 处理器
+  const handleFloatingToolbarHTMLExport = useCallback(async () => {
+    if (!conversationManager || !adapter) return
+    const sessionId = adapter.getSessionId()
+    if (!sessionId) {
+      showToast(t("exportNeedOpenFirst"))
+      return
+    }
+    const success = await conversationManager.exportConversation(sessionId, "html")
+    if (!success) {
+      showToast(t("exportFailed"))
+    }
+  }, [conversationManager, adapter])
 
   // 模型锁定切换处理器 (按站点)
   const handleModelLockToggle = useCallback(() => {
@@ -3219,6 +3245,8 @@ export const App = () => {
           setIsFloatingToolbarClearOpen(true)
         }}
         onGlobalSearch={openGlobalSettingsSearch}
+        onCopyMarkdown={handleCopyMarkdown}
+        onExportHTML={handleFloatingToolbarHTMLExport}
         onSegmentedExport={handleFloatingToolbarSegmentedExport}
         onModelLockToggle={handleModelLockToggle}
         isModelLocked={isModelLocked}

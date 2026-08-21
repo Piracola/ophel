@@ -13,6 +13,11 @@ import type {
   Platform,
   PlatformCapability,
 } from "../types"
+import {
+  getKatexStylesText as getUserscriptKatexStylesText,
+  renderKatexToMathML,
+  renderKatexToString,
+} from "./katex"
 import { userscriptStorage } from "./storage"
 
 export { userscriptStorage }
@@ -55,6 +60,14 @@ export const platform: Platform = {
   type: "userscript",
 
   storage: userscriptStorage,
+
+  math: {
+    renderKatexToString,
+    renderKatexToMathML,
+    async getKatexStylesText() {
+      return getUserscriptKatexStylesText()
+    },
+  },
 
   remoteConfig: {
     async getState() {

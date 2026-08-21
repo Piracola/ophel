@@ -1233,6 +1233,7 @@ export const en = {
   exportNotSupported: "Export not supported on this site",
   exportToTXT: "TXT",
   exportToHTML: "HTML",
+  exportToHTMLMenu: "HTML Export",
   exportMetaUrl: "URL",
   exportUntitled: "Untitled",
   exportToClipboard: "Copy Markdown",

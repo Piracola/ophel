@@ -63,6 +63,3 @@ test-results/
 Thumbs.db
 .DS_Store
 .codelf/
-
-# CodeGraph local index (not for sharing)
-.codegraph/

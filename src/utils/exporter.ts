@@ -5,11 +5,10 @@
  * 包含强大的 HTML 转 Markdown 功能
  */
 
-import { renderKatexToMathML } from "~platform/katex"
-import { getCurrentLang, t } from "~utils/i18n"
-import { showToast } from "~utils/toast"
-import { createMarkdownIt } from "~utils/markdown"
 import { platform } from "~platform"
+import { getCurrentLang, t } from "~utils/i18n"
+import { createMarkdownIt } from "~utils/markdown"
+import { showToast } from "~utils/toast"
 
 // 使用 String.fromCodePoint 在运行时生成 emoji
 // 避免构建工具将 Unicode 转义序列转换为 UTF-16 代理对字符串
@@ -691,9 +690,16 @@ const escapeHtml = (value: string): string =>
  * 渲染失败时回退为等宽文本显示 LaTeX 源码
  */
 export const renderMathToMathML = (content: string, displayMode: boolean): string =>
-  renderKatexToMathML(content, { displayMode })
+  platform.math.renderKatexToMathML(content, { displayMode })
 
-const htmlExportMarkdownIt = createMarkdownIt(true, false, renderMathToMathML)
+let htmlExportMarkdownIt: ReturnType<typeof createMarkdownIt> | null = null
+
+const getHtmlExportMarkdownIt = (): ReturnType<typeof createMarkdownIt> => {
+  if (!htmlExportMarkdownIt) {
+    htmlExportMarkdownIt = createMarkdownIt(true, false, renderMathToMathML)
+  }
+  return htmlExportMarkdownIt
+}
 
 const COPY_ICON_SVG =
   '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>'
@@ -765,44 +771,88 @@ function mergeSegmentedThoughtBlocks(content: string): string {
   return merged.join("\n")
 }
 
+type TopLevelBlockquote = {
+  index: number
+  end: number
+  block: string
+}
+
+/**
+ * 提取渲染后 HTML 中的顶层 blockquote（按标签深度配对，正确处理嵌套）。
+ */
+const findTopLevelBlockquotes = (html: string): TopLevelBlockquote[] => {
+  const blocks: TopLevelBlockquote[] = []
+  let depth = 0
+  let startIndex = -1
+  let cursor = 0
+
+  while (cursor < html.length) {
+    const openIndex = html.indexOf("<blockquote", cursor)
+    const closeIndex = html.indexOf("</blockquote>", cursor)
+
+    if (openIndex === -1 && closeIndex === -1) break
+
+    if (closeIndex === -1 || (openIndex !== -1 && openIndex < closeIndex)) {
+      if (depth === 0) startIndex = openIndex
+      depth += 1
+      cursor = openIndex + "<blockquote".length
+      continue
+    }
+
+    depth -= 1
+    cursor = closeIndex + "</blockquote>".length
+    if (depth === 0 && startIndex !== -1) {
+      blocks.push({ index: startIndex, end: cursor, block: html.slice(startIndex, cursor) })
+      startIndex = -1
+    }
+  }
+
+  return blocks
+}
+
+// 只匹配 blockquote 开头第一个段落里的思维链标记，
+// 避免把正文中偶然出现的 “[Thoughts]” 或嵌套内容误判为思维链标题。
+const leadingThoughtMarkerPattern =
+  /^(<blockquote>\s*<p>\s*)(?:(?:<strong>\s*)?\[(?:Thoughts?|思维链|思考过程)\](?:\s*<\/strong>)?|(?:<strong>\s*)?💭\s*思考过程(?:\s*<\/strong>)?)\s*(?:<br\s*\/?>\s*)?/i
+
+const isThoughtMarker = (block: string): boolean => leadingThoughtMarkerPattern.test(block)
+
+const renderThoughtGroup = (blocks: string[]): string => {
+  const thoughtBody = blocks
+    .map((block) =>
+      block
+        .replace(leadingThoughtMarkerPattern, "$1")
+        .replace(/^<blockquote>\s*<p>\s*<\/p>\s*/i, "<blockquote>"),
+    )
+    .join("\n")
+
+  return `<details class="gh-thought">
+  <summary class="gh-thought-summary"><span class="gh-thought-dot" aria-hidden="true"></span>${t("exportThoughtCollapsedLabel")}</summary>
+  <div class="gh-thought-body">${thoughtBody}</div>
+</details>`
+}
+
 /**
  * 渲染单条导出的 Markdown 内容
  * 复用面板同源的 markdown-it + highlight.js 管线，保证所见即所谈
  */
 function renderExportMarkdown(content: string): string {
-  let html = htmlExportMarkdownIt.render(mergeSegmentedThoughtBlocks(content))
+  let html = getHtmlExportMarkdownIt().render(mergeSegmentedThoughtBlocks(content))
 
   // 高亮变量占位符 {{varName}}
   html = html.replace(/\{\{([^\s{}]+)\}\}/g, '<span class="gh-variable-highlight">{{$1}}</span>')
 
-  // 连续的思维链 blockquote 合并为一个折叠块，避免模型分段输出造成多个思维链卡片
-  const blockquotePattern = /<blockquote>[\s\S]*?<\/blockquote>/g
-  const thoughtMarkerPattern =
-    /<p>\s*(?:(?:<strong>\s*)?\[(?:Thoughts?|思维链|思考过程)\](?:\s*<\/strong>)?|(?:<strong>\s*)?💭\s*思考过程(?:\s*<\/strong>)?)\s*(?:<br\s*\/?>\s*)?/i
-  const isThoughtMarker = (block: string): boolean => thoughtMarkerPattern.test(block)
-  const renderThoughtGroup = (blocks: string[]): string => {
-    const thoughtBody = blocks
-      .map((block) =>
-        block
-          .replace(thoughtMarkerPattern, "<p>")
-          .replace(/^<blockquote>\s*<p>\s*<\/p>\s*/i, "<blockquote>"),
-      )
-      .join("\n")
-
-    return `<details class="gh-thought">
-  <summary class="gh-thought-summary"><span class="gh-thought-dot" aria-hidden="true"></span>${t("exportThoughtCollapsedLabel")}</summary>
-  <div class="gh-thought-body">${thoughtBody}</div>
-</details>`
-  }
-
+  // 连续的思维链 blockquote 合并为一个折叠块，避免模型分段输出造成多个思维链卡片。
+  // 按标签深度扫描顶层 blockquote，而不是用非贪婪正则匹配：
+  // markdown-it 已转义代码块里的 HTML，因此 indexOf 不会误伤代码内容；
+  // 深度计数能正确处理嵌套 blockquote。
+  const blocks = findTopLevelBlockquotes(html)
   let renderedThoughts = ""
   let lastIndex = 0
   let pendingThoughts: string[] = []
-  let match: RegExpExecArray | null
 
-  while ((match = blockquotePattern.exec(html)) !== null) {
-    const before = html.slice(lastIndex, match.index)
-    const block = match[0]
+  for (const { index, end, block } of blocks) {
+    const before = html.slice(lastIndex, index)
     const isAdjacentThought = pendingThoughts.length > 0 && /^\s*$/.test(before)
 
     if (isThoughtMarker(block) || isAdjacentThought) {
@@ -816,7 +866,7 @@ function renderExportMarkdown(content: string): string {
       renderedThoughts += before + block
     }
 
-    lastIndex = match.index + block.length
+    lastIndex = end
   }
 
   if (pendingThoughts.length > 0) {
@@ -851,42 +901,42 @@ const HTML_THEME_LABELS = JSON.stringify({
 
 const EXPORT_HTML_CSS = `
 :root {
-  --gh-bg: #f5f4f2;
+  --gh-bg: #f7f6f4;
   --gh-surface: #ffffff;
-  --gh-border: #e9e6e1;
-  --gh-border-strong: #d9d5cd;
-  --gh-text: #1d1b18;
-  --gh-text-secondary: #6d675f;
-  --gh-text-tertiary: #a39d93;
-  --gh-primary: #3b63f3;
-  --gh-primary-soft: #eef1fe;
-  --gh-primary-soft-border: #dfe5fb;
-  --gh-hover: #f3f2ef;
-  --gh-shadow: 0 1px 2px rgba(29, 27, 24, 0.05), 0 16px 40px rgba(29, 27, 24, 0.08);
-  --gh-code-bg: #161616;
-  --gh-code-text: #e8e6e2;
-  --gh-code-border: #262625;
-  --gh-code-header-bg: #1c1c1c;
+  --gh-border: #e9e5df;
+  --gh-border-strong: #d8d2c9;
+  --gh-text: #1c1917;
+  --gh-text-secondary: #6b655e;
+  --gh-text-tertiary: #a29b92;
+  --gh-primary: #4285f4;
+  --gh-primary-soft: #e8f0fe;
+  --gh-primary-soft-border: #d2e3fc;
+  --gh-hover: #f4f2ef;
+  --gh-shadow: 0 1px 2px rgba(28, 25, 23, 0.05), 0 10px 30px rgba(28, 25, 23, 0.06);
+  --gh-code-bg: #151516;
+  --gh-code-text: #e9e7e4;
+  --gh-code-border: #252528;
+  --gh-code-header-bg: #1c1c1e;
   --gh-code-btn-text: #97938c;
-  --gh-code-btn-hover: #2a2927;
-  --gh-code-btn-border: #33322f;
-  --gh-radius: 14px;
+  --gh-code-btn-hover: #2b2b2e;
+  --gh-code-btn-border: #353538;
+  --gh-radius: 16px;
   --gh-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   --gh-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 html[data-theme="dark"] {
-  --gh-bg: #0e0e0d;
-  --gh-surface: #171716;
-  --gh-border: #282725;
-  --gh-border-strong: #383633;
-  --gh-text: #eae8e4;
-  --gh-text-secondary: #a8a49c;
-  --gh-text-tertiary: #76716a;
-  --gh-primary: #8ba3ff;
-  --gh-primary-soft: rgba(139, 163, 255, 0.14);
-  --gh-primary-soft-border: rgba(139, 163, 255, 0.24);
-  --gh-hover: #21201e;
-  --gh-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.45);
+  --gh-bg: #0f0f11;
+  --gh-surface: #19191c;
+  --gh-border: #2a2a2f;
+  --gh-border-strong: #3a3a40;
+  --gh-text: #ece9e5;
+  --gh-text-secondary: #a6a19a;
+  --gh-text-tertiary: #757068;
+  --gh-primary: #818cf8;
+  --gh-primary-soft: rgba(129, 140, 248, 0.14);
+  --gh-primary-soft-border: rgba(129, 140, 248, 0.26);
+  --gh-hover: #222226;
+  --gh-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 30px rgba(0, 0, 0, 0.38);
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -896,21 +946,29 @@ body {
   color: var(--gh-text);
   font-family: var(--gh-font);
   font-size: 16px;
-  line-height: 1.65;
+  line-height: 1.7;
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   transition: background 0.2s ease, color 0.2s ease;
 }
-  /* 纸面卡片：整篇导出内容落在居中的白卡上 */
+
+@keyframes gh-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 纸面卡片：整篇导出内容落在居中的白卡上 */
 .gh-shell {
-  max-width: 760px;
-  margin: 24px auto;
-  padding: 28px 52px 40px;
+  max-width: 820px;
+  margin: 32px auto;
+  padding: 32px 56px 44px;
 
   background: var(--gh-surface);
   border: 1px solid var(--gh-border);
-  border-radius: 16px;
+  border-radius: var(--gh-radius);
   box-shadow: var(--gh-shadow);
+  animation: gh-enter 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
   transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -937,14 +995,16 @@ body {
 
 /* 文档头部 */
 .gh-kicker {
-  margin: 0 0 8px;
-  font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--gh-primary);
+  margin: 0 0 10px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--gh-text-secondary);
 }
 .gh-doc-header h1 {
-  margin: 0 0 12px;
-  font-size: 2rem; font-weight: 700; line-height: 1.25;
-  letter-spacing: -0.02em;
+  margin: 0 0 14px;
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
   word-break: break-word;
 }
 .gh-doc-meta {
@@ -954,17 +1014,24 @@ body {
 }
 .gh-meta-dot { color: var(--gh-text-tertiary); }
 
-.gh-conversation { margin-top: 28px; }
+.gh-conversation { margin-top: 36px; }
 
-.gh-message { margin: 0 0 20px; padding: 18px 20px; border-radius: var(--gh-radius); }
+.gh-message {
+  margin: 0 0 22px;
+  padding: 20px 24px;
+  border-radius: var(--gh-radius);
+  background: var(--gh-surface);
+  border: 1px solid var(--gh-border);
+  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.03);
+}
 .gh-message[data-role="user"] {
   background: var(--gh-primary-soft);
-  border: 1px solid var(--gh-primary-soft-border);
+  border-color: var(--gh-primary-soft-border);
 }
-.gh-msg-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.gh-msg-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .gh-avatar {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; border-radius: 50%;
+  width: 30px; height: 30px; border-radius: 50%;
   background: var(--gh-hover);
   color: var(--gh-primary);
   flex-shrink: 0;
@@ -974,39 +1041,41 @@ body {
   background: var(--gh-primary);
   color: #ffffff;
 }
-.gh-msg-name { font-size: 0.8125rem; font-weight: 600; color: var(--gh-text-secondary); }
+.gh-msg-name { font-size: 0.8125rem; font-weight: 650; color: var(--gh-text-secondary); }
 .gh-message[data-role="user"] .gh-msg-name { color: var(--gh-text); }
 
 /* Markdown 渲染 */
-.gh-markdown-preview { line-height: 1.7; font-size: 0.9375rem; }
+.gh-markdown-preview { line-height: 1.75; font-size: 0.95rem; }
 .gh-markdown-preview > :first-child { margin-top: 0; }
 .gh-markdown-preview > :last-child { margin-bottom: 0; }
-.gh-markdown-preview p { margin: 12px 0; }
+.gh-markdown-preview p { margin: 14px 0; }
 .gh-markdown-preview h1, .gh-markdown-preview h2, .gh-markdown-preview h3, .gh-markdown-preview h4 {
-  margin: 22px 0 10px; font-weight: 650; line-height: 1.4; letter-spacing: -0.01em;
+  margin: 24px 0 10px; font-weight: 700; line-height: 1.35; letter-spacing: -0.02em;
 }
 .gh-markdown-preview h1 { font-size: 1.4em; }
 .gh-markdown-preview h2 { font-size: 1.25em; padding-bottom: 6px; border-bottom: 1px solid var(--gh-border); }
 .gh-markdown-preview h3 { font-size: 1.1em; }
 .gh-markdown-preview h4 { font-size: 1em; }
 .gh-markdown-preview h5, .gh-markdown-preview h6 { font-size: 0.92em; color: var(--gh-text-secondary); }
-.gh-markdown-preview ul, .gh-markdown-preview ol { margin: 12px 0; padding-left: 26px; }
+.gh-markdown-preview ul, .gh-markdown-preview ol { margin: 14px 0; padding-left: 26px; }
 .gh-markdown-preview li { margin: 6px 0; }
 .gh-markdown-preview li::marker { color: var(--gh-text-tertiary); }
 .gh-markdown-preview a {
   color: var(--gh-primary);
   text-decoration: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--gh-primary) 30%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--gh-primary) 35%, transparent);
 }
 .gh-markdown-preview a:hover { border-bottom-color: var(--gh-primary); }
 .gh-markdown-preview :not(pre) > code:not(.hljs) {
   background: var(--gh-hover);
-  padding: 2px 6px; border-radius: 5px;
+  padding: 2px 6px; border-radius: 6px;
   font-family: var(--gh-mono); font-size: 0.875em; color: var(--gh-text);
 }
 .gh-markdown-preview blockquote {
-  margin: 14px 0; padding: 2px 0 2px 16px;
+  margin: 14px 0;
+  padding: 4px 0 4px 18px;
   border-left: 3px solid var(--gh-border-strong);
+  background: color-mix(in srgb, var(--gh-hover) 55%, transparent);
   color: var(--gh-text-secondary);
 }
 .gh-markdown-preview hr { margin: 24px 0; border: 0; border-top: 1px solid var(--gh-border); }
@@ -1016,21 +1085,21 @@ body {
 .gh-markdown-preview .task-list-item input[type="checkbox"] { margin-right: 8px; }
 .gh-markdown-preview table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 14px 0; font-size: 0.92em; }
 .gh-markdown-preview th, .gh-markdown-preview td { padding: 8px 12px; border: 1px solid var(--gh-border); text-align: left; }
-.gh-markdown-preview th { background: var(--gh-hover); font-weight: 600; }
-.gh-variable-highlight { padding: 2px 6px; border-radius: 4px; background: rgba(59, 99, 243, 0.14); color: var(--gh-primary); font-family: var(--gh-mono); font-size: 0.9em; font-weight: 500; }
+.gh-markdown-preview th { background: var(--gh-hover); font-weight: 650; }
+.gh-variable-highlight { padding: 2px 6px; border-radius: 4px; background: color-mix(in srgb, var(--gh-primary) 14%, transparent); color: var(--gh-primary); font-family: var(--gh-mono); font-size: 0.9em; font-weight: 500; }
 
 /* 思维链折叠（[Thought] blockquote 包装为 details） */
 .gh-thought {
   margin: 16px 0;
   border: 1px solid var(--gh-border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--gh-surface);
   overflow: hidden;
 }
 .gh-thought-summary {
   display: flex; align-items: center; gap: 8px;
-  padding: 10px 14px;
-  font-size: 0.8125rem; font-weight: 600;
+  padding: 12px 16px;
+  font-size: 0.8125rem; font-weight: 650;
   color: var(--gh-text-secondary);
   cursor: pointer; user-select: none;
   list-style: none;
@@ -1038,16 +1107,17 @@ body {
 }
 .gh-thought-summary::-webkit-details-marker { display: none; }
 .gh-thought-summary:hover { background: var(--gh-hover); color: var(--gh-text); }
-.gh-thought-summary:focus-visible { outline: 2px solid var(--gh-primary); outline-offset: -2px; border-radius: 10px; }
+.gh-thought-summary:focus-visible { outline: 2px solid var(--gh-primary); outline-offset: -2px; border-radius: 12px; }
 .gh-thought-dot {
-  width: 6px; height: 6px; border-radius: 50%;
+  width: 7px; height: 7px; border-radius: 50%;
   background: var(--gh-primary); flex-shrink: 0;
 }
 .gh-thought[open] .gh-thought-summary { border-bottom: 1px solid var(--gh-border); }
 .gh-thought-body { padding: 4px 0; }
 .gh-thought-body blockquote {
-  margin: 0; padding: 10px 14px;
+  margin: 0; padding: 12px 16px;
   border-left: 0;
+  background: transparent;
   color: var(--gh-text-secondary); font-size: 0.9em;
 }
 
@@ -1061,13 +1131,13 @@ body {
 .gh-code-wrapper {
   margin: 16px 0;
   border: 1px solid var(--gh-code-border);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
   background: var(--gh-code-bg);
 }
 .gh-code-header {
   display: flex; align-items: center; justify-content: space-between;
-  height: 36px; padding: 0 6px 0 14px;
+  height: 38px; padding: 0 6px 0 14px;
   background: var(--gh-code-header-bg);
   border-bottom: 1px solid var(--gh-code-border);
 }
@@ -1093,8 +1163,8 @@ body {
 .gh-code-copy-btn[data-copied]::after { content: "✓"; font-size: 12px; line-height: 1; }
 .gh-code-wrapper pre { margin: 0; }
 .gh-code-wrapper pre code {
-  display: block; padding: 14px 16px; overflow-x: auto;
-  font-family: var(--gh-mono); font-size: 13px; line-height: 1.6;
+  display: block; padding: 16px 18px; overflow-x: auto;
+  font-family: var(--gh-mono); font-size: 13.5px; line-height: 1.65;
   color: var(--gh-code-text); background: var(--gh-code-bg);
   white-space: pre; tab-size: 4;
 }
@@ -1125,7 +1195,7 @@ math { font-family: "Cambria Math", "STIX Two Math", "Latin Modern Math", "Times
 /* 导出页脚 */
 .gh-doc-footer {
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  margin-top: 48px; padding-top: 24px;
+  margin-top: 56px; padding-top: 28px;
   border-top: 1px solid var(--gh-border);
   color: var(--gh-text-tertiary);
   font-size: 0.75rem;
@@ -1134,9 +1204,9 @@ math { font-family: "Cambria Math", "STIX Two Math", "Latin Modern Math", "Times
 
 /* 响应式 */
 @media (max-width: 640px) {
-  .gh-shell { margin: 0; padding: 32px 20px 36px; border-radius: 0; border-left: 0; border-right: 0; box-shadow: none; }
+  .gh-shell { margin: 0; padding: 28px 18px 32px; border-radius: 0; border-left: 0; border-right: 0; box-shadow: none; }
   .gh-doc-header h1 { font-size: 1.5rem; }
-  .gh-message { padding: 14px; }
+  .gh-message { padding: 16px; }
 }
 
 /* 打印：强制浅色、隐藏交互控件 */

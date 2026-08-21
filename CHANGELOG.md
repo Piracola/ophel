@@ -11,14 +11,14 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ### 🚀 New Features
 
-- **HTML export** — Conversations can now be exported as a single self-contained HTML file with responsive layout, light/dark/auto theme switching, syntax-highlighted code blocks with copy buttons, native MathML formulas, a collapsible "Thinking process" section, and light-theme printing.
-- **Default export format** — Added a "Default Export Format" setting, so the export shortcut and quick export use a preferred format (Markdown / JSON / TXT / HTML) instead of always Markdown.
+- **HTML export** — Conversations can now be exported as a single self-contained HTML file with responsive layout, light/dark/auto theme switching, syntax-highlighted code blocks with copy buttons, native MathML formulas, a collapsible "Thinking process" section, and light-theme printing. (#856, @Piracola)
+- **Default export format** — Added a "Default Export Format" setting, so the export shortcut and quick export use a preferred format (Markdown / JSON / TXT / HTML) instead of always Markdown. (#856, @Piracola)
 - **Site Pack document outline support** — Declarative Site Packs now support document outline navigation (`document-outline` capability and `documentOutline` config), enabling multi-source "Document" tab outlines and scroll navigation for Canvas, Artifacts, and standalone research reports on adapted sites.
 - **Manus support** — The online adapter library now includes Manus (manus.im); installing the pack enables outlines with user queries, basic export, chat width, Zen Mode, Clean Mode, new chat, and prompt insertion on conversations and shared pages.
 
 ---
 
-## [1.2.3] - 2026-08-20
+## [1.2.3][1.2.3] - 2026-08-20
 
 ### 🚀 New Features
 
